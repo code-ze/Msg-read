@@ -126,7 +126,7 @@ object InsightsEngine {
         }
 
         // 8. Month-over-month trend (last 2 months)
-        val sorted = byMonth.entries.sortedBy { it.key }
+        val sorted = monthData.entries.sortedBy { it.key }
         if (sorted.size >= 2) {
             val prev = sorted[sorted.size - 2].value
             val curr = sorted[sorted.size - 1].value
