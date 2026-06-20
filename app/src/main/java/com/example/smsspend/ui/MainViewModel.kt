@@ -55,7 +55,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             .stateIn(viewModelScope, SharingStarted.Eagerly, resolve(periodReq.value, anchorDay.value))
 
     private val periodTxns: StateFlow<List<TxnEntity>> =
-        period.flatMapLatest { p -> repo.txnsInPeriod(p.start, p.end) }
+        period.flatMapLatest { p -> repo.txnsInPeriod(p.start, p.endExclusive) }
             .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     val totals: StateFlow<Totals> =

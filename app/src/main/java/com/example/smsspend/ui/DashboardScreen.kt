@@ -106,7 +106,7 @@ fun DashboardScreen(vm: MainViewModel) {
                         Column(Modifier.padding(vertical = 4.dp)) {
                             totals.byCategory.forEach { line ->
                                 CategoryBar(
-                                    line.category, line.total, line.count, line.total / max
+                                    line.category, line.total, line.count, (line.total / max).toFloat()
                                 ) { vm.navigate(Screen.Category(line.category)) }
                             }
                         }
