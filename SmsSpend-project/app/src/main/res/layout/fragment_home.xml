@@ -1,0 +1,238 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:orientation="vertical"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@color/background">
+
+    <!-- Date range bar -->
+    <LinearLayout
+        android:orientation="horizontal"
+        android:layout_width="match_parent"
+        android:layout_height="48dp"
+        android:gravity="center"
+        android:paddingStart="8dp"
+        android:paddingEnd="8dp">
+        <TextView android:id="@+id/btn_prev"
+            android:layout_width="40dp" android:layout_height="40dp"
+            android:text="‹" android:textSize="22sp" android:textColor="@color/teal"
+            android:gravity="center"/>
+        <TextView android:id="@+id/tv_range"
+            android:layout_width="0dp" android:layout_height="wrap_content"
+            android:layout_weight="1" android:gravity="center"
+            android:textColor="@color/teal" android:textSize="14sp"
+            android:text="All Time"/>
+        <TextView android:id="@+id/btn_next"
+            android:layout_width="40dp" android:layout_height="40dp"
+            android:text="›" android:textSize="22sp" android:textColor="@color/teal"
+            android:gravity="center"/>
+    </LinearLayout>
+
+    <ScrollView android:layout_width="match_parent" android:layout_height="match_parent">
+        <LinearLayout android:orientation="vertical"
+            android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:paddingBottom="16dp">
+
+            <!-- Total balance card -->
+            <LinearLayout
+                android:layout_width="match_parent" android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:layout_marginStart="12dp" android:layout_marginEnd="12dp"
+                android:layout_marginTop="4dp" android:layout_marginBottom="8dp"
+                android:background="#161B22" android:padding="16dp">
+                <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+                    android:text="Net Position" android:textColor="@color/text_secondary" android:textSize="13sp"/>
+                <LinearLayout android:orientation="horizontal" android:layout_width="wrap_content"
+                    android:layout_height="wrap_content" android:gravity="center_vertical">
+                    <TextView android:id="@+id/tv_balance"
+                        android:layout_width="wrap_content" android:layout_height="wrap_content"
+                        android:textColor="@color/text_primary" android:textSize="32sp"
+                        android:textStyle="bold" android:text="0"/>
+                    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+                        android:text=" OMR" android:textColor="@color/text_secondary" android:textSize="16sp"/>
+                </LinearLayout>
+                <TextView android:id="@+id/tv_balance_sub"
+                    android:layout_width="wrap_content" android:layout_height="wrap_content"
+                    android:textColor="@color/text_secondary" android:textSize="12sp"
+                    android:text="Tap any point on the chart to explore"/>
+            </LinearLayout>
+
+            <!-- Income / Spent row -->
+            <LinearLayout android:orientation="horizontal"
+                android:layout_width="match_parent" android:layout_height="wrap_content"
+                android:layout_marginStart="12dp" android:layout_marginEnd="12dp"
+                android:layout_marginBottom="8dp">
+                <LinearLayout android:orientation="vertical"
+                    android:layout_width="0dp" android:layout_height="wrap_content"
+                    android:layout_weight="1" android:background="#161B22"
+                    android:padding="14dp" android:layout_marginEnd="4dp">
+                    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+                        android:text="Income" android:textColor="@color/text_secondary" android:textSize="12sp"/>
+                    <TextView android:id="@+id/tv_income"
+                        android:layout_width="wrap_content" android:layout_height="wrap_content"
+                        android:textColor="@color/teal" android:textSize="20sp"
+                        android:textStyle="bold" android:text="0.000"/>
+                    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+                        android:text="OMR" android:textColor="@color/teal" android:textSize="11sp"/>
+                </LinearLayout>
+                <LinearLayout android:orientation="vertical"
+                    android:layout_width="0dp" android:layout_height="wrap_content"
+                    android:layout_weight="1" android:background="#161B22"
+                    android:padding="14dp" android:layout_marginStart="4dp">
+                    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+                        android:text="Spent" android:textColor="@color/text_secondary" android:textSize="12sp"/>
+                    <TextView android:id="@+id/tv_spent"
+                        android:layout_width="wrap_content" android:layout_height="wrap_content"
+                        android:textColor="@color/red" android:textSize="20sp"
+                        android:textStyle="bold" android:text="0.000"/>
+                    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+                        android:text="OMR" android:textColor="@color/red" android:textSize="11sp"/>
+                </LinearLayout>
+            </LinearLayout>
+
+            <!-- Net / Invested row -->
+            <LinearLayout android:orientation="horizontal"
+                android:layout_width="match_parent" android:layout_height="wrap_content"
+                android:layout_marginStart="12dp" android:layout_marginEnd="12dp"
+                android:layout_marginBottom="8dp">
+                <LinearLayout android:orientation="vertical"
+                    android:layout_width="0dp" android:layout_height="wrap_content"
+                    android:layout_weight="1" android:background="#161B22"
+                    android:padding="14dp" android:layout_marginEnd="4dp">
+                    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+                        android:text="Net" android:textColor="@color/text_secondary" android:textSize="12sp"/>
+                    <TextView android:id="@+id/tv_net"
+                        android:layout_width="wrap_content" android:layout_height="wrap_content"
+                        android:textColor="@color/red" android:textSize="20sp"
+                        android:textStyle="bold" android:text="0.000"/>
+                    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+                        android:text="OMR" android:textColor="@color/text_secondary" android:textSize="11sp"/>
+                </LinearLayout>
+                <LinearLayout android:orientation="vertical"
+                    android:layout_width="0dp" android:layout_height="wrap_content"
+                    android:layout_weight="1" android:background="#161B22"
+                    android:padding="14dp" android:layout_marginStart="4dp">
+                    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+                        android:text="Invested" android:textColor="@color/text_secondary" android:textSize="12sp"/>
+                    <TextView android:id="@+id/tv_invested"
+                        android:layout_width="wrap_content" android:layout_height="wrap_content"
+                        android:textColor="@color/purple" android:textSize="20sp"
+                        android:textStyle="bold" android:text="0.000"/>
+                    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+                        android:text="OMR" android:textColor="@color/purple" android:textSize="11sp"/>
+                </LinearLayout>
+            </LinearLayout>
+
+            <!-- Balance chart -->
+            <com.example.smsspend.BalanceChartView
+                android:id="@+id/chart"
+                android:layout_width="match_parent"
+                android:layout_height="200dp"
+                android:layout_marginStart="12dp"
+                android:layout_marginEnd="12dp"
+                android:layout_marginBottom="8dp"/>
+
+            <!-- Chart selection info panel -->
+            <LinearLayout android:id="@+id/selection_panel"
+                android:orientation="vertical"
+                android:layout_width="match_parent" android:layout_height="wrap_content"
+                android:layout_marginStart="12dp" android:layout_marginEnd="12dp"
+                android:layout_marginBottom="8dp"
+                android:background="#161B22" android:padding="12dp"
+                android:visibility="gone">
+                <LinearLayout android:orientation="horizontal"
+                    android:layout_width="match_parent" android:layout_height="wrap_content"
+                    android:gravity="center_vertical">
+                    <TextView android:id="@+id/tv_sel_date"
+                        android:layout_width="0dp" android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:textColor="@color/text_secondary" android:textSize="13sp"/>
+                    <TextView android:id="@+id/tv_sel_balance"
+                        android:layout_width="wrap_content" android:layout_height="wrap_content"
+                        android:textColor="@color/text_primary" android:textSize="16sp"
+                        android:textStyle="bold"/>
+                </LinearLayout>
+                <TextView android:id="@+id/tv_sel_change"
+                    android:layout_width="wrap_content" android:layout_height="wrap_content"
+                    android:textSize="12sp" android:paddingTop="2dp"/>
+                <LinearLayout android:orientation="horizontal"
+                    android:layout_width="match_parent" android:layout_height="wrap_content"
+                    android:paddingTop="8dp">
+                    <TextView android:id="@+id/btn_see_txns"
+                        android:layout_width="wrap_content" android:layout_height="wrap_content"
+                        android:text="See transactions this day →"
+                        android:textColor="@color/teal" android:textSize="13sp"/>
+                </LinearLayout>
+            </LinearLayout>
+
+            <!-- Quick insights header -->
+            <LinearLayout android:orientation="horizontal"
+                android:layout_width="match_parent" android:layout_height="wrap_content"
+                android:layout_marginStart="12dp" android:layout_marginEnd="12dp"
+                android:paddingTop="8dp" android:paddingBottom="6dp">
+                <TextView android:layout_width="0dp" android:layout_height="wrap_content"
+                    android:layout_weight="1" android:text="Quick Insights"
+                    android:textColor="@color/text_primary" android:textSize="15sp"
+                    android:textStyle="bold"/>
+            </LinearLayout>
+
+            <LinearLayout android:orientation="horizontal"
+                android:layout_width="match_parent" android:layout_height="wrap_content"
+                android:layout_marginStart="12dp" android:layout_marginEnd="12dp"
+                android:layout_marginBottom="4dp">
+                <LinearLayout android:orientation="vertical"
+                    android:layout_width="0dp" android:layout_height="wrap_content"
+                    android:layout_weight="1" android:background="#161B22"
+                    android:padding="12dp" android:layout_marginEnd="4dp">
+                    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+                        android:text="Per day (avg)" android:textColor="@color/text_secondary" android:textSize="11sp"/>
+                    <TextView android:id="@+id/tv_per_day"
+                        android:layout_width="wrap_content" android:layout_height="wrap_content"
+                        android:textColor="@color/text_primary" android:textSize="16sp" android:textStyle="bold"/>
+                    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+                        android:text="OMR" android:textColor="@color/text_secondary" android:textSize="10sp"/>
+                </LinearLayout>
+                <LinearLayout android:orientation="vertical"
+                    android:layout_width="0dp" android:layout_height="wrap_content"
+                    android:layout_weight="1" android:background="#161B22"
+                    android:padding="12dp" android:layout_marginStart="4dp">
+                    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+                        android:text="Biggest day" android:textColor="@color/text_secondary" android:textSize="11sp"/>
+                    <TextView android:id="@+id/tv_biggest_day"
+                        android:layout_width="wrap_content" android:layout_height="wrap_content"
+                        android:textColor="@color/red" android:textSize="16sp" android:textStyle="bold"/>
+                    <TextView android:id="@+id/tv_biggest_day_date"
+                        android:layout_width="wrap_content" android:layout_height="wrap_content"
+                        android:textColor="@color/text_secondary" android:textSize="10sp"/>
+                </LinearLayout>
+            </LinearLayout>
+
+            <LinearLayout android:orientation="horizontal"
+                android:layout_width="match_parent" android:layout_height="wrap_content"
+                android:layout_marginStart="12dp" android:layout_marginEnd="12dp"
+                android:layout_marginBottom="8dp">
+                <LinearLayout android:orientation="vertical"
+                    android:layout_width="0dp" android:layout_height="wrap_content"
+                    android:layout_weight="1" android:background="#161B22"
+                    android:padding="12dp" android:layout_marginEnd="4dp">
+                    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+                        android:text="Best month" android:textColor="@color/text_secondary" android:textSize="11sp"/>
+                    <TextView android:id="@+id/tv_best_month"
+                        android:layout_width="wrap_content" android:layout_height="wrap_content"
+                        android:textColor="@color/teal" android:textSize="13sp" android:textStyle="bold"/>
+                </LinearLayout>
+                <LinearLayout android:orientation="vertical"
+                    android:layout_width="0dp" android:layout_height="wrap_content"
+                    android:layout_weight="1" android:background="#161B22"
+                    android:padding="12dp" android:layout_marginStart="4dp">
+                    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+                        android:text="Worst month" android:textColor="@color/text_secondary" android:textSize="11sp"/>
+                    <TextView android:id="@+id/tv_worst_month"
+                        android:layout_width="wrap_content" android:layout_height="wrap_content"
+                        android:textColor="@color/red" android:textSize="13sp" android:textStyle="bold"/>
+                </LinearLayout>
+            </LinearLayout>
+
+        </LinearLayout>
+    </ScrollView>
+</LinearLayout>

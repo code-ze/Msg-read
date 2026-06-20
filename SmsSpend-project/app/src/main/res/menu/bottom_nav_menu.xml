@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<menu xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:id="@+id/nav_home"      android:title="Home"      android:icon="@drawable/ic_home"/>
+    <item android:id="@+id/nav_activity"  android:title="Activity"  android:icon="@drawable/ic_activity"/>
+    <item android:id="@+id/nav_analytics" android:title="Analytics" android:icon="@drawable/ic_analytics"/>
+    <item android:id="@+id/nav_insights"  android:title="Insights"  android:icon="@drawable/ic_insights"/>
+    <item android:id="@+id/nav_portfolio" android:title="Portfolio" android:icon="@drawable/ic_portfolio"/>
+    <item android:id="@+id/nav_retire"    android:title="Retire"    android:icon="@drawable/ic_retire"/>
+</menu>

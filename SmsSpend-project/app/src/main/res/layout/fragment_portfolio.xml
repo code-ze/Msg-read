@@ -1,0 +1,78 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:orientation="vertical"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@color/background">
+
+    <!-- Header -->
+    <LinearLayout android:orientation="horizontal"
+        android:layout_width="match_parent" android:layout_height="wrap_content"
+        android:padding="12dp" android:gravity="center_vertical">
+        <TextView android:layout_width="0dp" android:layout_height="wrap_content"
+            android:layout_weight="1" android:text="Portfolio"
+            android:textColor="@color/text_primary" android:textSize="18sp" android:textStyle="bold"/>
+        <TextView android:id="@+id/btn_add_stock"
+            android:layout_width="wrap_content" android:layout_height="wrap_content"
+            android:text="+ Add Stock" android:textColor="@color/teal" android:textSize="13sp"
+            android:padding="4dp"/>
+    </LinearLayout>
+
+    <!-- Portfolio total card -->
+    <LinearLayout android:orientation="horizontal"
+        android:layout_width="match_parent" android:layout_height="wrap_content"
+        android:layout_marginStart="12dp" android:layout_marginEnd="12dp"
+        android:layout_marginBottom="8dp"
+        android:background="#161B22" android:padding="14dp">
+        <LinearLayout android:orientation="vertical"
+            android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1">
+            <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+                android:text="Portfolio Value" android:textColor="@color/text_secondary" android:textSize="12sp"/>
+            <TextView android:id="@+id/tv_portfolio_value"
+                android:layout_width="wrap_content" android:layout_height="wrap_content"
+                android:textColor="@color/text_primary" android:textSize="22sp" android:textStyle="bold"
+                android:text="—"/>
+            <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+                android:text="OMR" android:textColor="@color/text_secondary" android:textSize="11sp"/>
+        </LinearLayout>
+        <LinearLayout android:orientation="vertical"
+            android:layout_width="wrap_content" android:layout_height="wrap_content"
+            android:gravity="end">
+            <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+                android:text="Total P&amp;L" android:textColor="@color/text_secondary" android:textSize="12sp"/>
+            <TextView android:id="@+id/tv_portfolio_pnl"
+                android:layout_width="wrap_content" android:layout_height="wrap_content"
+                android:textColor="@color/teal" android:textSize="16sp" android:textStyle="bold"
+                android:text="—"/>
+            <TextView android:id="@+id/tv_last_refresh"
+                android:layout_width="wrap_content" android:layout_height="wrap_content"
+                android:textColor="@color/text_secondary" android:textSize="10sp"
+                android:text="Tap stock to refresh price"/>
+        </LinearLayout>
+    </LinearLayout>
+
+    <!-- MSX status bar -->
+    <LinearLayout android:orientation="horizontal"
+        android:layout_width="match_parent" android:layout_height="wrap_content"
+        android:layout_marginStart="12dp" android:layout_marginEnd="12dp"
+        android:layout_marginBottom="8dp" android:gravity="center_vertical">
+        <View android:id="@+id/msx_dot"
+            android:layout_width="8dp" android:layout_height="8dp"
+            android:background="#FF4B6E" android:layout_marginEnd="6dp"/>
+        <TextView android:id="@+id/tv_msx_status"
+            android:layout_width="0dp" android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:textColor="@color/text_secondary" android:textSize="11sp"
+            android:text="MSX prices: not loaded"/>
+        <TextView android:id="@+id/btn_refresh_prices"
+            android:layout_width="wrap_content" android:layout_height="wrap_content"
+            android:text="⟳ Refresh" android:textColor="@color/teal" android:textSize="12sp"/>
+    </LinearLayout>
+
+    <androidx.recyclerview.widget.RecyclerView
+        android:id="@+id/recycler"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:clipToPadding="false"
+        android:paddingBottom="8dp"/>
+</LinearLayout>

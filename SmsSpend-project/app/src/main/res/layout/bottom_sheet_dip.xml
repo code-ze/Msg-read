@@ -1,0 +1,59 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:orientation="vertical"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:background="#1C2128"
+    android:paddingBottom="24dp">
+
+    <!-- Handle -->
+    <View android:layout_width="32dp" android:layout_height="4dp"
+        android:background="#444" android:layout_gravity="center_horizontal"
+        android:layout_marginTop="8dp" android:layout_marginBottom="12dp"/>
+
+    <TextView android:id="@+id/tv_sheet_date"
+        android:layout_width="wrap_content" android:layout_height="wrap_content"
+        android:textColor="@color/text_primary" android:textSize="17sp"
+        android:textStyle="bold" android:paddingStart="16dp" android:paddingEnd="16dp"
+        android:layout_marginBottom="2dp"/>
+
+    <LinearLayout android:orientation="horizontal"
+        android:layout_width="match_parent" android:layout_height="wrap_content"
+        android:paddingStart="16dp" android:paddingEnd="16dp"
+        android:paddingBottom="12dp">
+        <TextView android:id="@+id/tv_sheet_balance"
+            android:layout_width="0dp" android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:textColor="@color/text_secondary" android:textSize="13sp"/>
+        <TextView android:id="@+id/tv_sheet_change"
+            android:layout_width="wrap_content" android:layout_height="wrap_content"
+            android:textSize="13sp"/>
+    </LinearLayout>
+
+    <View android:layout_width="match_parent" android:layout_height="1dp"
+        android:background="@color/divider" android:layout_marginBottom="4dp"/>
+
+    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+        android:text="Transactions this day:" android:textColor="@color/text_secondary"
+        android:textSize="11sp" android:paddingStart="16dp" android:paddingTop="8dp"
+        android:paddingBottom="4dp"/>
+
+    <androidx.recyclerview.widget.RecyclerView
+        android:id="@+id/sheet_recycler"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:nestedScrollingEnabled="false"
+        android:maxHeight="300dp"/>
+
+    <TextView android:id="@+id/tv_sheet_empty"
+        android:layout_width="wrap_content" android:layout_height="wrap_content"
+        android:text="No transactions found for this date"
+        android:textColor="@color/text_secondary" android:textSize="13sp"
+        android:paddingStart="16dp" android:paddingTop="8dp"
+        android:visibility="gone"/>
+
+    <TextView android:id="@+id/tv_sheet_total"
+        android:layout_width="wrap_content" android:layout_height="wrap_content"
+        android:textColor="@color/text_primary" android:textSize="13sp"
+        android:textStyle="bold" android:paddingStart="16dp" android:paddingTop="12dp"/>
+</LinearLayout>

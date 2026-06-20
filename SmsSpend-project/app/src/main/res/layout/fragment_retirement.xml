@@ -1,0 +1,234 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@color/background">
+
+    <LinearLayout android:orientation="vertical"
+        android:layout_width="match_parent" android:layout_height="wrap_content"
+        android:padding="16dp">
+
+        <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+            android:text="Retirement Calculator"
+            android:textColor="@color/text_primary" android:textSize="20sp"
+            android:textStyle="bold" android:layout_marginBottom="4dp"/>
+        <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+            android:text="FIRE — Financial Independence, Retire Early"
+            android:textColor="@color/text_secondary" android:textSize="13sp"
+            android:layout_marginBottom="20dp"/>
+
+        <!-- Inputs -->
+        <LinearLayout android:id="@+id/card_inputs"
+            android:orientation="vertical"
+            android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:background="#161B22" android:padding="16dp"
+            android:layout_marginBottom="12dp">
+
+            <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+                android:text="YOUR SITUATION" android:textColor="@color/text_secondary"
+                android:textSize="11sp" android:letterSpacing="0.1"
+                android:layout_marginBottom="12dp"/>
+
+            <!-- Current savings -->
+            <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+                android:text="Current Savings (OMR)" android:textColor="@color/text_secondary"
+                android:textSize="12sp" android:layout_marginBottom="4dp"/>
+            <EditText android:id="@+id/et_savings"
+                android:layout_width="match_parent" android:layout_height="44dp"
+                android:background="#0D1117" android:inputType="numberDecimal"
+                android:textColor="@color/text_primary" android:textSize="16sp"
+                android:paddingStart="12dp" android:paddingEnd="12dp"
+                android:hint="0" android:textColorHint="@color/text_secondary"
+                android:layout_marginBottom="12dp"/>
+
+            <!-- Monthly contribution -->
+            <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+                android:text="Monthly Investment (OMR)" android:textColor="@color/text_secondary"
+                android:textSize="12sp" android:layout_marginBottom="4dp"/>
+            <EditText android:id="@+id/et_monthly"
+                android:layout_width="match_parent" android:layout_height="44dp"
+                android:background="#0D1117" android:inputType="numberDecimal"
+                android:textColor="@color/text_primary" android:textSize="16sp"
+                android:paddingStart="12dp" android:paddingEnd="12dp"
+                android:hint="0" android:textColorHint="@color/text_secondary"
+                android:layout_marginBottom="12dp"/>
+
+            <!-- Annual return -->
+            <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+                android:text="Expected Annual Return (%)" android:textColor="@color/text_secondary"
+                android:textSize="12sp" android:layout_marginBottom="4dp"/>
+            <EditText android:id="@+id/et_return"
+                android:layout_width="match_parent" android:layout_height="44dp"
+                android:background="#0D1117" android:inputType="numberDecimal"
+                android:textColor="@color/text_primary" android:textSize="16sp"
+                android:paddingStart="12dp" android:paddingEnd="12dp"
+                android:hint="7" android:textColorHint="@color/text_secondary"
+                android:layout_marginBottom="12dp"/>
+
+            <!-- Desired monthly income -->
+            <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+                android:text="Desired Monthly Retirement Income (OMR)"
+                android:textColor="@color/text_secondary" android:textSize="12sp"
+                android:layout_marginBottom="4dp"/>
+            <EditText android:id="@+id/et_desired"
+                android:layout_width="match_parent" android:layout_height="44dp"
+                android:background="#0D1117" android:inputType="numberDecimal"
+                android:textColor="@color/text_primary" android:textSize="16sp"
+                android:paddingStart="12dp" android:paddingEnd="12dp"
+                android:hint="1000" android:textColorHint="@color/text_secondary"
+                android:layout_marginBottom="12dp"/>
+
+            <!-- Withdrawal rate -->
+            <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+                android:text="Safe Withdrawal Rate (%)" android:textColor="@color/text_secondary"
+                android:textSize="12sp" android:layout_marginBottom="4dp"/>
+            <EditText android:id="@+id/et_swr"
+                android:layout_width="match_parent" android:layout_height="44dp"
+                android:background="#0D1117" android:inputType="numberDecimal"
+                android:textColor="@color/text_primary" android:textSize="16sp"
+                android:paddingStart="12dp" android:paddingEnd="12dp"
+                android:hint="4" android:textColorHint="@color/text_secondary"
+                android:layout_marginBottom="4dp"/>
+            <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+                android:text="4% rule: withdraw 4% of your portfolio annually"
+                android:textColor="@color/text_secondary" android:textSize="10sp"
+                android:layout_marginBottom="4dp"/>
+        </LinearLayout>
+
+        <TextView android:id="@+id/btn_calculate"
+            android:layout_width="match_parent" android:layout_height="50dp"
+            android:text="Calculate" android:gravity="center"
+            android:textColor="@color/background" android:textSize="16sp"
+            android:textStyle="bold" android:background="@color/teal"
+            android:layout_marginBottom="16dp"/>
+
+        <!-- Results section -->
+        <LinearLayout android:id="@+id/results_section"
+            android:orientation="vertical"
+            android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:visibility="gone">
+
+            <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+                android:text="RESULTS" android:textColor="@color/text_secondary"
+                android:textSize="11sp" android:letterSpacing="0.1"
+                android:layout_marginBottom="12dp"/>
+
+            <!-- FIRE number -->
+            <LinearLayout android:orientation="vertical"
+                android:layout_width="match_parent" android:layout_height="wrap_content"
+                android:background="#161B22" android:padding="16dp"
+                android:layout_marginBottom="8dp">
+                <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+                    android:text="Your FIRE Number" android:textColor="@color/text_secondary"
+                    android:textSize="12sp"/>
+                <LinearLayout android:orientation="horizontal" android:layout_width="wrap_content"
+                    android:layout_height="wrap_content" android:gravity="center_vertical">
+                    <TextView android:id="@+id/tv_fire_number"
+                        android:layout_width="wrap_content" android:layout_height="wrap_content"
+                        android:textColor="@color/teal" android:textSize="28sp"
+                        android:textStyle="bold"/>
+                    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+                        android:text=" OMR" android:textColor="@color/text_secondary" android:textSize="14sp"/>
+                </LinearLayout>
+                <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+                    android:id="@+id/tv_fire_sub"
+                    android:textColor="@color/text_secondary" android:textSize="11sp"
+                    android:layout_marginTop="2dp"/>
+            </LinearLayout>
+
+            <!-- Time to FIRE + monthly needed row -->
+            <LinearLayout android:orientation="horizontal"
+                android:layout_width="match_parent" android:layout_height="wrap_content"
+                android:layout_marginBottom="8dp">
+                <LinearLayout android:orientation="vertical"
+                    android:layout_width="0dp" android:layout_height="wrap_content"
+                    android:layout_weight="1" android:background="#161B22"
+                    android:padding="14dp" android:layout_marginEnd="4dp">
+                    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+                        android:text="Time to FIRE" android:textColor="@color/text_secondary"
+                        android:textSize="11sp"/>
+                    <TextView android:id="@+id/tv_time_to_fire"
+                        android:layout_width="wrap_content" android:layout_height="wrap_content"
+                        android:textColor="@color/amber" android:textSize="18sp"
+                        android:textStyle="bold"/>
+                    <TextView android:id="@+id/tv_retire_year"
+                        android:layout_width="wrap_content" android:layout_height="wrap_content"
+                        android:textColor="@color/text_secondary" android:textSize="10sp"/>
+                </LinearLayout>
+                <LinearLayout android:orientation="vertical"
+                    android:layout_width="0dp" android:layout_height="wrap_content"
+                    android:layout_weight="1" android:background="#161B22"
+                    android:padding="14dp" android:layout_marginStart="4dp">
+                    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+                        android:text="Monthly Needed" android:textColor="@color/text_secondary"
+                        android:textSize="11sp"/>
+                    <TextView android:id="@+id/tv_monthly_needed"
+                        android:layout_width="wrap_content" android:layout_height="wrap_content"
+                        android:textColor="@color/purple" android:textSize="18sp"
+                        android:textStyle="bold"/>
+                    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+                        android:text="OMR / month" android:textColor="@color/text_secondary"
+                        android:textSize="10sp"/>
+                </LinearLayout>
+            </LinearLayout>
+
+            <!-- Projection at retirement -->
+            <LinearLayout android:orientation="vertical"
+                android:layout_width="match_parent" android:layout_height="wrap_content"
+                android:background="#161B22" android:padding="14dp"
+                android:layout_marginBottom="8dp">
+                <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+                    android:text="Projected at Retirement" android:textColor="@color/text_secondary"
+                    android:textSize="12sp" android:layout_marginBottom="8dp"/>
+                <LinearLayout android:orientation="horizontal"
+                    android:layout_width="match_parent" android:layout_height="wrap_content">
+                    <LinearLayout android:orientation="vertical"
+                        android:layout_width="0dp" android:layout_height="wrap_content"
+                        android:layout_weight="1">
+                        <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+                            android:text="Portfolio" android:textColor="@color/text_secondary"
+                            android:textSize="10sp"/>
+                        <TextView android:id="@+id/tv_proj_portfolio"
+                            android:layout_width="wrap_content" android:layout_height="wrap_content"
+                            android:textColor="@color/teal" android:textSize="14sp" android:textStyle="bold"/>
+                    </LinearLayout>
+                    <LinearLayout android:orientation="vertical"
+                        android:layout_width="0dp" android:layout_height="wrap_content"
+                        android:layout_weight="1">
+                        <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+                            android:text="Monthly Income" android:textColor="@color/text_secondary"
+                            android:textSize="10sp"/>
+                        <TextView android:id="@+id/tv_proj_income"
+                            android:layout_width="wrap_content" android:layout_height="wrap_content"
+                            android:textColor="@color/teal" android:textSize="14sp" android:textStyle="bold"/>
+                    </LinearLayout>
+                    <LinearLayout android:orientation="vertical"
+                        android:layout_width="0dp" android:layout_height="wrap_content"
+                        android:layout_weight="1">
+                        <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+                            android:text="Progress" android:textColor="@color/text_secondary"
+                            android:textSize="10sp"/>
+                        <TextView android:id="@+id/tv_progress"
+                            android:layout_width="wrap_content" android:layout_height="wrap_content"
+                            android:textColor="@color/amber" android:textSize="14sp" android:textStyle="bold"/>
+                    </LinearLayout>
+                </LinearLayout>
+            </LinearLayout>
+
+            <!-- Milestones -->
+            <LinearLayout android:orientation="vertical"
+                android:layout_width="match_parent" android:layout_height="wrap_content"
+                android:background="#161B22" android:padding="14dp"
+                android:layout_marginBottom="16dp">
+                <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+                    android:text="Milestones" android:textColor="@color/text_secondary"
+                    android:textSize="12sp" android:layout_marginBottom="8dp"/>
+                <TextView android:id="@+id/tv_milestones"
+                    android:layout_width="wrap_content" android:layout_height="wrap_content"
+                    android:textColor="@color/text_primary" android:textSize="13sp"
+                    android:lineSpacingExtra="6dp"/>
+            </LinearLayout>
+        </LinearLayout>
+
+    </LinearLayout>
+</ScrollView>

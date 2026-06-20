@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">SMS Spend</string>
+    <string name="nav_home">Home</string>
+    <string name="nav_activity">Activity</string>
+    <string name="nav_analytics">Analytics</string>
+    <string name="nav_insights">Insights</string>
+    <string name="nav_portfolio">Portfolio</string>
+    <string name="nav_retire">Retire</string>
+</resources>

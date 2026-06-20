@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="background">#0D1117</color>
+    <color name="card_bg">#161B22</color>
+    <color name="card_bg2">#1C2128</color>
+    <color name="teal">#00C896</color>
+    <color name="teal_dim">#0D3B30</color>
+    <color name="red">#FF4B6E</color>
+    <color name="red_dim">#3B0D1A</color>
+    <color name="purple">#A78BFA</color>
+    <color name="purple_dim">#1E1040</color>
+    <color name="amber">#FBBF24</color>
+    <color name="text_primary">#FFFFFF</color>
+    <color name="text_secondary">#8B949E</color>
+    <color name="divider">#21262D</color>
+    <color name="chart_line">#00C896</color>
+    <color name="chart_fill_start">#4400C896</color>
+    <color name="chart_fill_end">#0000C896</color>
+</resources>
