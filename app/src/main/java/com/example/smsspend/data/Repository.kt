@@ -2,7 +2,9 @@ package com.example.smsspend.data
 
 import android.content.Context
 import com.example.smsspend.parser.Categorizer
+import com.example.smsspend.parser.CompanyNames
 import com.example.smsspend.parser.ParsedTxn
+import com.example.smsspend.parser.TxnType
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.withContext
@@ -31,6 +33,9 @@ class Repository(private val appContext: Context) {
 
     fun subcategoriesInPeriod(start: Long, end: Long, category: String): Flow<List<SubcategorySum>> =
         txnDao.subcategoriesInPeriod(start, end, category)
+
+    fun categorySpendSince(start: Long): Flow<List<CategorySum>> =
+        txnDao.categorySpendSince(start)
 
     // ---- categories ----
     fun categories(): Flow<List<CategoryDef>> = categoryDao.all()
@@ -83,7 +88,12 @@ class Repository(private val appContext: Context) {
         val before = txnDao.count()
 
         val entities = scan.txns.map { p: ParsedTxn ->
-            val clean = Categorizer.cleanMerchant(p.merchantRaw)
+            var clean = Categorizer.cleanMerchant(p.merchantRaw)
+            // Unify company name variants (English/Arabic/codes) for investments + dividends,
+            // so the same company isn't split across rows.
+            if (p.type == TxnType.DIVIDEND || p.type == TxnType.IPO) {
+                clean = CompanyNames.canonical(clean)
+            }
             val rule = rules[clean]
             val category = rule?.category ?: Categorizer.defaultCategory(p.type, clean)
             val subcategory = rule?.subcategory ?: Categorizer.defaultSubcategory(category, clean)
@@ -103,7 +113,7 @@ class Repository(private val appContext: Context) {
 
         // AGM invites: discover holdings (don't touch shares/price the user set).
         for (agm in scan.agms) {
-            val name = agm.company.trim()
+            val name = CompanyNames.canonical(agm.company.trim())
             if (name.isEmpty()) continue
             val existing = holdingDao.findByName(name)
             if (existing == null) {

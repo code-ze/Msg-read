@@ -65,6 +65,15 @@ interface TxnDao {
     )
     fun merchantsInPeriod(start: Long, end: Long): Flow<List<MerchantSum>>
 
+    /** Spend per category since [start] (for rolling baselines used in fixed-cost audits). */
+    @Query(
+        "SELECT category, SUM(amount) AS total, COUNT(*) AS count FROM txn " +
+            "WHERE date >= :start AND type IN ('DEBIT', 'WALLET_OUT') " +
+            "AND category NOT IN ('Income', 'Dividends') " +
+            "GROUP BY category"
+    )
+    fun categorySpendSince(start: Long): Flow<List<CategorySum>>
+
     @Query("SELECT * FROM txn ORDER BY date DESC")
     suspend fun allForExport(): List<TxnEntity>
 

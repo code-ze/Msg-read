@@ -8,6 +8,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
@@ -17,6 +18,14 @@ import androidx.compose.ui.unit.dp
 
 /** One wedge of a donut / one series in a chart. */
 data class ChartSlice(val label: String, val value: Double, val color: Color)
+
+/** Keeps the [topN] biggest slices and folds the rest into a single grey "Other" slice. */
+fun groupTopSlices(slices: List<ChartSlice>, topN: Int = 5): List<ChartSlice> {
+    if (slices.size <= topN) return slices
+    val sorted = slices.sortedByDescending { it.value }
+    val rest = sorted.drop(topN)
+    return sorted.take(topN) + ChartSlice("Other", rest.sumOf { it.value }, otherSliceColor)
+}
 
 /**
  * A donut chart drawn with Canvas (no chart library / dependency). Wedges are sized by value;
@@ -59,7 +68,10 @@ fun DonutChart(
     }
 }
 
-/** A minimal line chart for a value series (e.g. balance over time). */
+/**
+ * A smooth single-line trend with a soft gradient fading to the baseline (e.g. balance over
+ * time). Uses midpoint cubic smoothing so the line reads as a clean curve, not jagged bars.
+ */
 @Composable
 fun Sparkline(
     values: List<Float>,
@@ -71,15 +83,33 @@ fun Sparkline(
         val min = values.min()
         val max = values.max()
         val range = (max - min).takeIf { it > 0f } ?: 1f
-        val stepX = size.width / (values.size - 1)
-        val pad = 4.dp.toPx()
+        val n = values.size
+        val stepX = size.width / (n - 1)
+        val pad = 6.dp.toPx()
         val h = size.height - pad * 2
-        val path = Path()
-        values.forEachIndexed { i, v ->
-            val x = i * stepX
-            val y = pad + (h - (v - min) / range * h)
-            if (i == 0) path.moveTo(x, y) else path.lineTo(x, y)
+        fun px(i: Int) = i * stepX
+        fun py(i: Int) = pad + (h - (values[i] - min) / range * h)
+
+        val line = Path().apply {
+            moveTo(px(0), py(0))
+            for (i in 1 until n) {
+                val midX = (px(i - 1) + px(i)) / 2f
+                cubicTo(midX, py(i - 1), midX, py(i), px(i), py(i))
+            }
         }
-        drawPath(path, color, style = Stroke(width = 3.dp.toPx(), cap = StrokeCap.Round))
+        // Soft gradient fill under the curve.
+        val fill = Path().apply {
+            addPath(line)
+            lineTo(size.width, size.height)
+            lineTo(0f, size.height)
+            close()
+        }
+        drawPath(
+            fill,
+            brush = Brush.verticalGradient(
+                listOf(color.copy(alpha = 0.30f), color.copy(alpha = 0.0f))
+            )
+        )
+        drawPath(line, color, style = Stroke(width = 3.dp.toPx(), cap = StrokeCap.Round))
     }
 }

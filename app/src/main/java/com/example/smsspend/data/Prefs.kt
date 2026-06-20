@@ -45,11 +45,12 @@ object Prefs {
 
     // --- per-widget config: which metric this widget shows ---
     val metricLabels = linkedMapOf(
+        "balance" to "Balance",
+        "safe" to "Safe/day",
         "spent" to "Spent",
         "income" to "Income",
         "net" to "Net",
         "invested" to "Invested",
-        "balance" to "Balance",
         "perday" to "Per day",
         "projected" to "Projected"
     )

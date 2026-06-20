@@ -17,26 +17,40 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
 import androidx.core.view.WindowCompat
 
-private val Teal = Color(0xFF0E7C7B)
-private val TealDark = Color(0xFF14B8A6)
-private val Amber = Color(0xFFD97706)
+// Premium, muted semantic palette (soft mint / coral, not neon).
+private val Mint = Color(0xFF4DB6AC)
+private val Coral = Color(0xFFE57373)
 
 private val LightColors = lightColorScheme(
-    primary = Teal,
-    secondary = Amber,
-    tertiary = Color(0xFF3B6EA5)
+    primary = Color(0xFF0E7C7B),
+    secondary = Color(0xFF3B6EA5),
+    tertiary = Color(0xFF7C5CBF),
+    error = Color(0xFFC2554D),
+    background = Color(0xFFF7F8FA),
+    surface = Color(0xFFFFFFFF),
+    surfaceVariant = Color(0xFFEDEFF3)
 )
 
+// Deep-gray dark theme with subtle elevated surfaces (#121212 / #1E1E1E).
 private val DarkColors = darkColorScheme(
-    primary = TealDark,
-    secondary = Color(0xFFF59E0B),
-    tertiary = Color(0xFF7FB0E6)
+    primary = Mint,
+    onPrimary = Color(0xFF06302B),
+    secondary = Color(0xFF7FB0E6),
+    tertiary = Color(0xFFB39DDB),
+    error = Coral,
+    background = Color(0xFF121212),
+    onBackground = Color(0xFFE6E8EA),
+    surface = Color(0xFF1E1E1E),
+    onSurface = Color(0xFFE6E8EA),
+    surfaceVariant = Color(0xFF262A2E),
+    onSurfaceVariant = Color(0xFF9BA4AE),
+    outlineVariant = Color(0xFF333A40)
 )
 
 @Composable
 fun SmsSpendTheme(
     darkTheme: Boolean = isSystemInDarkTheme(),
-    dynamicColor: Boolean = true,
+    dynamicColor: Boolean = false,
     content: @Composable () -> Unit
 ) {
     val context = LocalContext.current

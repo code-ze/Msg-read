@@ -42,31 +42,35 @@ import com.example.smsspend.parser.Categorizer
 import com.example.smsspend.parser.TxnType
 import kotlin.math.abs
 
+// Cohesive, muted palette (teals / blues / purples) tuned for dark mode.
 private val categoryColors = mapOf(
-    "Food Delivery" to Color(0xFFEF4444),
-    "Cafes & Tea" to Color(0xFFB45309),
-    "Restaurants" to Color(0xFFF97316),
-    "Groceries" to Color(0xFF22C55E),
-    "Fuel & Transport" to Color(0xFF3B82F6),
-    "Pharmacy & Health" to Color(0xFF14B8A6),
-    "Telecom" to Color(0xFF8B5CF6),
-    "Utilities" to Color(0xFF06B6D4),
-    "Rent" to Color(0xFFD946EF),
-    "Subscriptions" to Color(0xFFEC4899),
-    "Online Shopping" to Color(0xFFF59E0B),
-    "Charity" to Color(0xFF10B981),
-    Categorizer.TRANSFERS to Color(0xFF6B7280),
-    Categorizer.INVESTMENTS to Color(0xFF7C3AED),
-    Categorizer.DIVIDENDS to Color(0xFF0EA5E9),
-    Categorizer.INCOME to Color(0xFF16A34A),
-    Categorizer.OTHER to Color(0xFF94A3B8)
+    "Food Delivery" to Color(0xFFE57373),
+    "Cafes & Tea" to Color(0xFFC9A36A),
+    "Restaurants" to Color(0xFFE0A45B),
+    "Groceries" to Color(0xFF5FB99A),
+    "Fuel & Transport" to Color(0xFF5B8DEF),
+    "Pharmacy & Health" to Color(0xFF4DB6AC),
+    "Telecom" to Color(0xFF9B8CFF),
+    "Utilities" to Color(0xFF4FC3E0),
+    "Rent" to Color(0xFFB57EDC),
+    "Subscriptions" to Color(0xFFE08AB0),
+    "Online Shopping" to Color(0xFFD9A441),
+    "Charity" to Color(0xFF6BC9A0),
+    Categorizer.TRANSFERS to Color(0xFF8A93A0),
+    Categorizer.INVESTMENTS to Color(0xFF8B7BD8),
+    Categorizer.DIVIDENDS to Color(0xFF4FA3D1),
+    Categorizer.INCOME to Color(0xFF4DD0B1),
+    Categorizer.OTHER to Color(0xFF8A93A0)
 )
+
+/** The grouped "Other" slice color for donuts (top-N + rest). */
+val otherSliceColor = Color(0xFF8A93A0)
 
 /** Stable palette so custom categories / sub-categories get a consistent, distinct color. */
 private val fallbackPalette = listOf(
-    Color(0xFFE11D48), Color(0xFF7C3AED), Color(0xFF2563EB), Color(0xFF059669),
-    Color(0xFFD97706), Color(0xFF0891B2), Color(0xFFDB2777), Color(0xFF65A30D),
-    Color(0xFF9333EA), Color(0xFFF43F5E), Color(0xFF0D9488), Color(0xFFCA8A04)
+    Color(0xFF4DB6AC), Color(0xFF5B8DEF), Color(0xFF9B8CFF), Color(0xFF5FB99A),
+    Color(0xFF4FC3E0), Color(0xFFB57EDC), Color(0xFFE08AB0), Color(0xFFD9A441),
+    Color(0xFF6BC9A0), Color(0xFF7FB0E6), Color(0xFF4FA3D1), Color(0xFFC9A36A)
 )
 
 fun categoryColor(name: String): Color =

@@ -13,6 +13,7 @@ import com.example.smsspend.data.TxnEntity
 import com.example.smsspend.model.Insights
 import com.example.smsspend.model.Period
 import com.example.smsspend.model.Periods
+import com.example.smsspend.model.Recommendations
 import com.example.smsspend.model.SalaryDetector
 import com.example.smsspend.model.Totals
 import com.example.smsspend.widget.WidgetUpdater
@@ -39,9 +40,12 @@ sealed interface PeriodReq {
 
 sealed interface Screen {
     data object Dashboard : Screen
+    data object Transactions : Screen
+    data object Analytics : Screen
+    data object Insights : Screen
+    data object Investments : Screen
     data class Category(val name: String) : Screen
     data class Merchant(val name: String) : Screen
-    data object Investments : Screen
     data object Settings : Screen
 }
 
@@ -130,6 +134,67 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
 
     val recentTxns: StateFlow<List<TxnEntity>> = periodTxns
 
+    /** Typical cycle length in days (median gap between salaries), default 30. */
+    private fun cycleLength(sal: List<Long>): Int {
+        if (sal.size < 2) return 30
+        val gaps = sal.sorted().zipWithNext { a, b -> ((b - a) / (24L * 60 * 60 * 1000)).toInt() }
+        return gaps.sorted()[gaps.size / 2].coerceIn(20, 40)
+    }
+
+    /** Estimated days until the next salary lands (cycle length minus days elapsed). */
+    private fun remainingDays(ins: Insights, sal: List<Long>): Int =
+        (cycleLength(sal) - ins.daysElapsed).coerceAtLeast(1)
+
+    /** Daily allowance that keeps the balance to the next salary (Safe-to-Spend). */
+    val safeToSpend: StateFlow<Double> =
+        combine(balance, insights, salaryDates) { bal, ins, sal ->
+            Recommendations.safeDailyAllowance(bal, remainingDays(ins, sal))
+        }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0.0)
+
+    private val baselineStart = System.currentTimeMillis() - 90L * 24 * 60 * 60 * 1000
+    private val baselineSpend: StateFlow<List<com.example.smsspend.data.CategorySum>> =
+        repo.categorySpendSince(baselineStart)
+            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    /** Actionable savings/investing recommendations for the Insights & Action tab. */
+    val recommendations: StateFlow<List<Recommendations.Rec>> =
+        combine(totals, insights, balance, baselineSpend, salaryDates) { t, ins, bal, baseline, sal ->
+            buildRecommendations(t, ins, bal, baseline, remainingDays(ins, sal))
+        }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    private fun buildRecommendations(
+        t: Totals,
+        ins: Insights,
+        bal: Double,
+        baseline: List<com.example.smsspend.data.CategorySum>,
+        daysLeftInCycle: Int
+    ): List<Recommendations.Rec> {
+        val convenience = setOf("Food Delivery", "Cafes & Tea")
+        val leaks = t.byCategory
+            .filter { it.category in convenience }
+            .map { Recommendations.Leak(it.category, it.count, it.total) }
+
+        val fixedCats = setOf("Utilities", "Telecom", "Fuel & Transport")
+        val baseByCat = baseline.associate { it.category to it.total }
+        val periodDays = ins.daysTotal.coerceAtLeast(1)
+        val fixed = fixedCats.mapNotNull { cat ->
+            val current = t.byCategory.firstOrNull { it.category == cat }?.total ?: return@mapNotNull null
+            if (current <= 0) return@mapNotNull null
+            val ninetyDay = baseByCat[cat] ?: 0.0
+            val baselineForPeriod = ninetyDay / 90.0 * periodDays
+            Recommendations.FixedCost(cat, current, baselineForPeriod)
+        }
+
+        return Recommendations.analyze(
+            balance = bal,
+            perDay = ins.perDay,
+            daysLeftInCycle = daysLeftInCycle,
+            monthlyEssentialSpend = ins.perDay * 30,
+            leaks = leaks,
+            fixed = fixed
+        )
+    }
+
     fun txnsForCategory(start: Long, end: Long, category: String) =
         repo.txnsForCategory(start, end, category)
 
@@ -209,6 +274,11 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     // ---- navigation ----
+    /** Switch top-level tab: resets the back stack to that tab's root. */
+    fun selectTab(screen: Screen) {
+        if (backStack.value.size == 1 && backStack.value.first() == screen) return
+        backStack.value = listOf(screen)
+    }
     fun navigate(screen: Screen) { backStack.value = backStack.value + screen }
     fun pop(): Boolean {
         if (backStack.value.size <= 1) return false
@@ -305,17 +375,24 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         val t = totals.value
         val ins = insights.value
         val bal = balance.value
+        val safe = safeToSpend.value
         val label = period.value.label
-        val breakdown = t.byCategory.take(5)
-            .joinToString("\n") { line ->
-                val pct = if (t.spent > 0) (line.total / t.spent * 100).toInt() else 0
-                val bars = "█".repeat((pct + 5) / 10)
-                "${line.category}  $pct%  $bars"
-            }
+
+        // Cram the headline numbers into the larger widget, then the category bars.
+        val summary = buildString {
+            if (bal > 0) append("Balance ${fmt2(bal)}")
+            if (safe > 0) { if (isNotEmpty()) append(" · "); append("Safe ${fmt2(safe)}/day") }
+            append("\nSpent ${fmt2(t.spent)} · ${fmt2(ins.perDay)}/day")
+        }
+        val bars = t.byCategory.take(4).joinToString("\n") { line ->
+            val pct = if (t.spent > 0) (line.total / t.spent * 100).toInt() else 0
+            "${line.category}  $pct%  ${"█".repeat((pct + 5) / 10)}"
+        }
+        val breakdown = (summary + (if (bars.isNotBlank()) "\n$bars" else ""))
             .ifBlank { "No spending yet" }
 
         val trend = buildString {
-            append(fmt(ins.perDay)).append("/day")
+            append(fmt2(ins.perDay)).append("/day")
             if (prevSpent.value > 0) {
                 val delta = ((ins.projectedSpend - prevSpent.value) / prevSpent.value * 100).toInt()
                 val arrow = if (delta >= 0) "▲" else "▼"
@@ -324,17 +401,19 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         }
 
         val values = mapOf(
-            "spent" to "${fmt(t.spent)} OMR",
-            "income" to "${fmt(t.income)} OMR",
-            "net" to ((if (t.net >= 0) "+" else "−") + fmt(kotlin.math.abs(t.net)) + " OMR"),
-            "invested" to "${fmt(t.invested)} OMR",
-            "balance" to (if (bal > 0) "${fmt(bal)} OMR" else "—"),
-            "perday" to "${fmt(ins.perDay)} OMR",
-            "projected" to "${fmt(ins.projectedSpend)} OMR"
+            "spent" to "${fmt2(t.spent)} OMR",
+            "income" to "${fmt2(t.income)} OMR",
+            "net" to ((if (t.net >= 0) "+" else "−") + fmt2(kotlin.math.abs(t.net)) + " OMR"),
+            "invested" to "${fmt2(t.invested)} OMR",
+            "balance" to (if (bal > 0) "${fmt2(bal)} OMR" else "—"),
+            "safe" to (if (safe > 0) "${fmt2(safe)} OMR" else "—"),
+            "perday" to "${fmt2(ins.perDay)} OMR",
+            "projected" to "${fmt2(ins.projectedSpend)} OMR"
         )
         Prefs.setWidgetSnapshot(app, values, breakdown, trend, label)
         WidgetUpdater.updateAll(app)
     }
 
     private fun fmt(v: Double) = String.format("%.3f", v)
+    private fun fmt2(v: Double) = String.format(java.util.Locale.US, "%,.2f", v)
 }
