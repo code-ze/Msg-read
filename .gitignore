@@ -1,0 +1,16 @@
+# Gradle / build
+.gradle/
+build/
+app/build/
+*/build/
+
+# Android Studio / IntelliJ
+.idea/
+*.iml
+local.properties
+.DS_Store
+
+# Keep the Gradle wrapper jar committed (do NOT ignore gradle/wrapper)
+captures/
+.externalNativeBuild/
+.cxx/

@@ -1,34 +1,60 @@
-# SMS Spend — build your APK from your phone (no computer)
+# SMS Spend
 
-This builds an Android app that reads your bank SMS, auto-categorizes
-spending, lets you tap any transaction to re-categorize it, and shows a
-home-screen widget with this month's total.
+An on-device Android app that reads your Bank Muscat SMS, categorizes spending,
+and shows your money by **pay cycle** (anchored to your salary date, not the 1st of
+the month). Built with Jetpack Compose + Material 3, a Room database, and home-screen
+widgets. Everything stays on your phone — it only uses `READ_SMS` and makes no network
+connections.
 
-## Build it (all from the phone browser)
+## Features
 
-1. Go to github.com, sign in (free account is fine).
-2. Tap **+ → New repository**. Name it `sms-spend`, set it Private, tap
-   **Create repository**.
-3. On the repo page tap **Add file → Create new file**.
-4. In the filename box type exactly:
-   `.github/workflows/build-apk.yml`
-   (the slashes create the folders automatically)
-5. Paste the entire contents of `build-apk.yml` into the editor.
-6. Scroll down, tap **Commit changes**.
-7. Tap the **Actions** tab. A run called "Build APK" starts on its own.
-   Wait ~3–5 minutes until it shows a green check.
-8. Open the finished run, scroll to **Artifacts**, tap **SmsSpend-apk**
-   to download the zip. Extract it — inside is `app-debug.apk`.
+- **Dashboard** — Spent / Income / Net / Invested for the selected period, a
+  tap-through category breakdown, and the full transaction list.
+- **Flexible periods** — default is your **pay cycle** (e.g. the 20th → the 19th).
+  Step backward/forward with ◀ ▶, or pick *This/Last cycle*, *This/Last month*,
+  *This/Last year*, or any **custom date range**. Set your salary day in Settings.
+- **Smart categorization that learns** — re-categorize a merchant once and **every**
+  transaction from that merchant updates (fixing one TALABAT fixes them all). Merchant
+  names are cleaned up automatically.
+- **Merchant smart view** — total / count / average / first & last seen for any merchant,
+  with its full history.
+- **IPO & dividends** — IPO subscriptions are tracked as *Investments*, dividend payouts
+  as *Dividends*. A Settings toggle decides whether IPO buys count toward "Spent".
+- **Resizable widgets** — a compact metric widget and a metric + top-categories widget,
+  each with a config screen to choose what it shows.
 
-## Install it
+## Build the APK (from a phone browser, no computer needed)
 
-1. Open the apk from your Files/Downloads.
-2. Android will ask to allow installing from this source — allow it.
-3. Open the app, tap **Allow** when it asks for SMS permission.
-4. Long-press your home screen → Widgets → find **SMS Spend** → drag it out.
+1. Push this repository to GitHub (it already contains a Gradle project + workflow).
+2. Open the **Actions** tab — the **Build APK** workflow runs on every push, and can also
+   be started manually with **Run workflow**.
+3. Wait for the green check, open the run, and download the **SmsSpend-apk** artifact.
+   Extract it to get `app-debug.apk`.
 
-## Notes
-- It only reads SMS on your device; nothing is uploaded anywhere.
-- Tap any transaction in the list to change its category. Your changes stick.
-- The widget refreshes when you open the app (and every ~30 min).
-- Keyword rules live in `SmsParser.kt` if you want to tweak categories later.
+## Install
+
+1. Open the APK from Files/Downloads and allow installing from this source.
+2. Launch the app and tap **Allow** for SMS access.
+3. Tap **Refresh** to import. Long-press the home screen → **Widgets** → **SMS Spend**.
+
+## Project layout
+
+```
+app/src/main/java/com/example/smsspend/
+  parser/      SmsParser, Categorizer        (pure Kotlin, unit-tested)
+  model/       Period / Periods, Totals       (pure Kotlin, unit-tested)
+  data/        Room entities, DAOs, Repository, Prefs, SmsReader
+  ui/          Compose screens + ViewModel
+  widget/      Widget providers + config activity
+app/src/test/  JVM unit tests for the parser, categorizer, periods, totals
+```
+
+## Notes for developers
+
+- The SMS parser is deliberately isolated and **covered by unit tests**
+  (`SmsParserTest`). The documented message patterns live in `SmsParser.kt`; never change
+  a regex without updating/adding a test.
+- Storage is a Room database (`smsspend.db`); learned per-merchant rules live in
+  `merchant_rule`.
+- On-device only. The single permission is `READ_SMS`. Ask the owner before adding any new
+  permission or dependency.
