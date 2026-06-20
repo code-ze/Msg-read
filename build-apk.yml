@@ -1,0 +1,479 @@
+name: Build APK
+'on':
+  workflow_dispatch: null
+  push:
+    branches:
+    - main
+    - master
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/setup-java@v4
+      with:
+        distribution: temurin
+        java-version: '17'
+    - uses: android-actions/setup-android@v3
+    - name: Install SDK packages
+      run: |
+        yes | sdkmanager --licenses >/dev/null 2>&1 || true
+        sdkmanager "platform-tools" "platforms;android-34" "build-tools;34.0.0"
+    - uses: gradle/actions/setup-gradle@v3
+      with:
+        gradle-version: '8.9'
+    - name: Generate project files
+      run: |
+        set -e
+        mkdir -p "app"
+        cat > "app/build.gradle" <<'__SMS_EOF_0__'
+        plugins {
+            id 'com.android.application'
+            id 'org.jetbrains.kotlin.android'
+        }
+        android {
+            namespace 'com.example.smsspend'
+            compileSdk 34
+            defaultConfig {
+                applicationId "com.example.smsspend"
+                minSdk 24
+                targetSdk 34
+                versionCode 1
+                versionName "1.0"
+            }
+            buildTypes { debug { } }
+            compileOptions {
+                sourceCompatibility JavaVersion.VERSION_17
+                targetCompatibility JavaVersion.VERSION_17
+            }
+            kotlinOptions { jvmTarget = '17' }
+        }
+        dependencies {
+            implementation 'androidx.core:core-ktx:1.13.1'
+            implementation 'androidx.appcompat:appcompat:1.7.0'
+        }
+        __SMS_EOF_0__
+        mkdir -p "app/src/main"
+        cat > "app/src/main/AndroidManifest.xml" <<'__SMS_EOF_1__'
+        <?xml version="1.0" encoding="utf-8"?>
+        <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+            <uses-permission android:name="android.permission.READ_SMS"/>
+            <uses-permission android:name="android.permission.RECEIVE_SMS"/>
+            <application
+                android:allowBackup="true"
+                android:icon="@android:drawable/sym_def_app_icon"
+                android:label="SMS Spend"
+                android:theme="@style/Theme.AppCompat.DayNight">
+                <activity android:name=".MainActivity" android:exported="true">
+                    <intent-filter>
+                        <action android:name="android.intent.action.MAIN"/>
+                        <category android:name="android.intent.category.LAUNCHER"/>
+                    </intent-filter>
+                </activity>
+                <receiver android:name=".SpendingWidget" android:exported="false">
+                    <intent-filter>
+                        <action android:name="android.appwidget.action.APPWIDGET_UPDATE"/>
+                    </intent-filter>
+                    <meta-data android:name="android.appwidget.provider"
+                        android:resource="@xml/spending_widget_info"/>
+                </receiver>
+            </application>
+        </manifest>
+        __SMS_EOF_1__
+        mkdir -p "app/src/main/java/com/example/smsspend"
+        cat > "app/src/main/java/com/example/smsspend/MainActivity.kt" <<'__SMS_EOF_2__'
+        package com.example.smsspend
+
+        import android.Manifest
+        import android.appwidget.AppWidgetManager
+        import android.content.ComponentName
+        import android.content.Context
+        import android.content.pm.PackageManager
+        import android.os.Bundle
+        import android.view.View
+        import android.view.ViewGroup
+        import android.widget.BaseAdapter
+        import android.widget.Button
+        import android.widget.ListView
+        import android.widget.TextView
+        import androidx.activity.result.contract.ActivityResultContracts
+        import androidx.appcompat.app.AlertDialog
+        import androidx.appcompat.app.AppCompatActivity
+        import androidx.core.content.ContextCompat
+        import java.text.SimpleDateFormat
+        import java.util.Calendar
+        import java.util.Date
+        import java.util.Locale
+
+        class MainActivity : AppCompatActivity() {
+            private lateinit var summaryView: TextView
+            private lateinit var list: ListView
+            private var data: List<Txn> = emptyList()
+
+            private val cats = listOf(
+                "Food Delivery", "Cafes & Tea", "Restaurants", "Groceries",
+                "Fuel & Transport", "Pharmacy & Health", "Telecom", "Utilities",
+                "Subscriptions", "Online Shopping", "Charity", "Transfers", "Income", "Other"
+            )
+
+            private val reqPerm = registerForActivityResult(
+                ActivityResultContracts.RequestPermission()
+            ) { granted ->
+                if (granted) refresh()
+                else summaryView.text = "Permission denied. Enable SMS access in Settings > Apps."
+            }
+
+            override fun onCreate(s: Bundle?) {
+                super.onCreate(s)
+                setContentView(R.layout.activity_main)
+                summaryView = findViewById(R.id.summary)
+                list = findViewById(R.id.list)
+                findViewById<Button>(R.id.refresh).setOnClickListener { ensureAndRefresh() }
+                list.setOnItemClickListener { _, _, pos, _ -> recategorize(pos) }
+                ensureAndRefresh()
+            }
+
+            private fun ensureAndRefresh() {
+                if (ContextCompat.checkSelfPermission(this, Manifest.permission.READ_SMS)
+                    == PackageManager.PERMISSION_GRANTED
+                ) refresh() else reqPerm.launch(Manifest.permission.READ_SMS)
+            }
+
+            private fun refresh() {
+                val ov = Store.overrides(this)
+                data = SmsParser.load(this).map { t -> ov[t.key]?.let { t.copy(category = it) } ?: t }
+                list.adapter = TxnAdapter()
+                renderSummary()
+            }
+
+            private fun isThisMonth(d: Long): Boolean {
+                val c = Calendar.getInstance(); val now = Calendar.getInstance()
+                c.timeInMillis = d
+                return c.get(Calendar.YEAR) == now.get(Calendar.YEAR) &&
+                    c.get(Calendar.MONTH) == now.get(Calendar.MONTH)
+            }
+
+            private fun renderSummary() {
+                val spend = data.filter { it.type == "debit" || it.type == "walletOut" }
+                val byCat = HashMap<String, Double>()
+                var monthTotal = 0.0
+                for (t in spend) {
+                    byCat[t.category] = (byCat[t.category] ?: 0.0) + t.amount
+                    if (isThisMonth(t.date)) monthTotal += t.amount
+                }
+                val total = spend.sumOf { it.amount }
+                val sb = StringBuilder()
+                sb.append("Spent this month: ").append(String.format("%.3f", monthTotal)).append(" OMR\n")
+                sb.append("Total tracked out: ").append(String.format("%.3f", total)).append(" OMR\n\n")
+                val lines = StringBuilder()
+                for ((c, a) in byCat.entries.sortedByDescending { it.value }) {
+                    sb.append(c).append(": ").append(String.format("%.3f", a)).append("\n")
+                    lines.append("• ").append(c).append("  ").append(String.format("%.1f", a)).append("\n")
+                }
+                summaryView.text = sb.toString().trim()
+                Store.saveSummary(this, lines.toString().trim(), String.format("%.3f OMR", monthTotal))
+                updateWidget(this)
+            }
+
+            private fun recategorize(pos: Int) {
+                val t = data[pos]
+                AlertDialog.Builder(this)
+                    .setTitle(t.merchant)
+                    .setItems(cats.toTypedArray()) { _, i ->
+                        Store.setOverride(this, t.key, cats[i]); refresh()
+                    }.show()
+            }
+
+            private inner class TxnAdapter : BaseAdapter() {
+                val df = SimpleDateFormat("MM/dd", Locale.US)
+                override fun getCount() = data.size
+                override fun getItem(p: Int) = data[p]
+                override fun getItemId(p: Int) = p.toLong()
+                override fun getView(p: Int, cv: View?, parent: ViewGroup?): View {
+                    val v = cv ?: layoutInflater.inflate(R.layout.item_txn, parent, false)
+                    val t = data[p]
+                    v.findViewById<TextView>(R.id.merchant).text = t.merchant
+                    v.findViewById<TextView>(R.id.cat).text = t.category + "  ·  " + df.format(Date(t.date))
+                    val amt = v.findViewById<TextView>(R.id.amount)
+                    val sign = if (t.type == "deposit" || t.type == "walletIn") "+" else "-"
+                    amt.text = sign + String.format("%.3f", t.amount)
+                    return v
+                }
+            }
+
+            companion object {
+                fun updateWidget(ctx: Context) {
+                    val mgr = AppWidgetManager.getInstance(ctx)
+                    val ids = mgr.getAppWidgetIds(ComponentName(ctx, SpendingWidget::class.java))
+                    for (id in ids) SpendingWidget.render(ctx, mgr, id)
+                }
+            }
+        }
+        __SMS_EOF_2__
+        mkdir -p "app/src/main/java/com/example/smsspend"
+        cat > "app/src/main/java/com/example/smsspend/SmsParser.kt" <<'__SMS_EOF_3__'
+        package com.example.smsspend
+
+        import android.content.Context
+        import android.provider.Telephony
+        import kotlin.math.abs
+
+        data class Txn(
+            val type: String,
+            val amount: Double,
+            val merchant: String,
+            val date: Long,
+            val key: String,
+            var category: String
+        )
+
+        object SmsParser {
+            private val beforeOmr = Regex("([0-9]+(?:[.,][0-9]+)?)\\s*OMR")
+            private val afterOmr = Regex("OMR\\s+([0-9]+(?:[.,][0-9]+)?)")
+            private val debitMerch = Regex("المباشر في (.+?) بتاريخ")
+            private val sentTo = Regex("إلى (.+?) من حسابك")
+            private val recvFrom = Regex("من (.+?) في حسابك")
+            private val code6 = Regex("^[0-9]{6}-")
+
+            fun load(ctx: Context): List<Txn> {
+                val out = ArrayList<Txn>()
+                val uri = Telephony.Sms.Inbox.CONTENT_URI
+                val cols = arrayOf(Telephony.Sms.BODY, Telephony.Sms.DATE)
+                val cur = ctx.contentResolver.query(uri, cols, null, null, Telephony.Sms.DATE + " DESC")
+                    ?: return out
+                cur.use {
+                    val bi = it.getColumnIndexOrThrow(Telephony.Sms.BODY)
+                    val di = it.getColumnIndexOrThrow(Telephony.Sms.DATE)
+                    while (it.moveToNext()) {
+                        val body = it.getString(bi) ?: continue
+                        if (!body.contains("OMR")) continue
+                        val date = it.getLong(di)
+                        val t = parse(body, date) ?: continue
+                        out.add(t)
+                    }
+                }
+                return out
+            }
+
+            private fun num(s: String) = s.replace(",", "").toDoubleOrNull() ?: 0.0
+
+            fun parse(body: String, date: Long): Txn? {
+                val key = abs(body.hashCode()).toString()
+                return when {
+                    body.contains("بطاقة الخصم المباشر") -> {
+                        val amt = beforeOmr.find(body)?.groupValues?.get(1)?.let { num(it) } ?: return null
+                        var m = debitMerch.find(body)?.groupValues?.get(1)?.trim() ?: "?"
+                        m = code6.replace(m, "")
+                        Txn("debit", amt, m, date, key, categorize(m))
+                    }
+                    body.contains("لقد قمت بإرسال") -> {
+                        val amt = afterOmr.find(body)?.groupValues?.get(1)?.let { num(it) } ?: return null
+                        val m = sentTo.find(body)?.groupValues?.get(1)?.trim() ?: "?"
+                        Txn("walletOut", amt, m, date, key, "Transfers")
+                    }
+                    body.contains("لقد استلمت") -> {
+                        val amt = afterOmr.find(body)?.groupValues?.get(1)?.let { num(it) } ?: return null
+                        val m = recvFrom.find(body)?.groupValues?.get(1)?.trim() ?: "?"
+                        Txn("walletIn", amt, m, date, key, "Income")
+                    }
+                    body.contains("تم إيداع") -> {
+                        val amt = beforeOmr.find(body)?.groupValues?.get(1)?.let { num(it) } ?: return null
+                        Txn("deposit", amt, "Deposit", date, key, "Income")
+                    }
+                    else -> null
+                }
+            }
+
+            private val rules = listOf(
+                "Food Delivery" to listOf("TALABAT"),
+                "Cafes & Tea" to listOf("TEA TIME", "AROMA", "FUN JUICE", "KYAN BARK", "EFENDI"),
+                "Restaurants" to listOf("RESTURANT", "RESTAURANT", "TEXAS CHICKEN", "SHAWARMA", "HEQBAH", "CHOCOLALA", "KUCU"),
+                "Groceries" to listOf("LULU", "RAHAL", "FRESH EASY", "ABU TURKEY", "BASAMAT", "EXPRESS SHOPPING", "ATLAS", "RABI", "GHORBAN", "BRIGHT GULF", "AHLAIN", "MARKET"),
+                "Fuel & Transport" to listOf("OMAN OIL", "SHELL", "PRECISION TUNE", "AL MAHA", "1718"),
+                "Pharmacy & Health" to listOf("PHARMACY", "HOSPITAL", "CLINIC"),
+                "Telecom" to listOf("OMANTEL", "OOREDOO"),
+                "Utilities" to listOf("NAMA"),
+                "Subscriptions" to listOf("ANTHROPIC", "CLAUDE", "NETFLIX", "SPOTIFY"),
+                "Online Shopping" to listOf("ALIEXPRESS", "AMAZON", "NOON"),
+                "Charity" to listOf("SADAQAT", "DAR AL ATTA", "M.O.A")
+            )
+
+            fun categorize(merchant: String): String {
+                val m = merchant.uppercase()
+                for ((cat, keys) in rules) if (keys.any { m.contains(it) }) return cat
+                return "Other"
+            }
+        }
+        __SMS_EOF_3__
+        mkdir -p "app/src/main/java/com/example/smsspend"
+        cat > "app/src/main/java/com/example/smsspend/SpendingWidget.kt" <<'__SMS_EOF_4__'
+        package com.example.smsspend
+
+        import android.app.PendingIntent
+        import android.appwidget.AppWidgetManager
+        import android.appwidget.AppWidgetProvider
+        import android.content.Context
+        import android.content.Intent
+        import android.widget.RemoteViews
+
+        class SpendingWidget : AppWidgetProvider() {
+            override fun onUpdate(c: Context, mgr: AppWidgetManager, ids: IntArray) {
+                for (id in ids) render(c, mgr, id)
+            }
+
+            companion object {
+                fun render(c: Context, mgr: AppWidgetManager, id: Int) {
+                    val (total, text) = Store.summary(c)
+                    val rv = RemoteViews(c.packageName, R.layout.widget_spending)
+                    rv.setTextViewText(R.id.w_total, total)
+                    rv.setTextViewText(R.id.w_text, text)
+                    val pi = PendingIntent.getActivity(
+                        c, 0, Intent(c, MainActivity::class.java),
+                        PendingIntent.FLAG_IMMUTABLE
+                    )
+                    rv.setOnClickPendingIntent(R.id.w_root, pi)
+                    mgr.updateAppWidget(id, rv)
+                }
+            }
+        }
+        __SMS_EOF_4__
+        mkdir -p "app/src/main/java/com/example/smsspend"
+        cat > "app/src/main/java/com/example/smsspend/Store.kt" <<'__SMS_EOF_5__'
+        package com.example.smsspend
+
+        import android.content.Context
+        import org.json.JSONObject
+
+        object Store {
+            private const val P = "smsspend"
+
+            fun overrides(c: Context): MutableMap<String, String> {
+                val s = c.getSharedPreferences(P, 0).getString("ov", "{}")!!
+                val o = JSONObject(s)
+                val m = HashMap<String, String>()
+                for (k in o.keys()) m[k] = o.getString(k)
+                return m
+            }
+
+            fun setOverride(c: Context, key: String, cat: String) {
+                val m = overrides(c)
+                m[key] = cat
+                val o = JSONObject()
+                for ((k, v) in m) o.put(k, v)
+                c.getSharedPreferences(P, 0).edit().putString("ov", o.toString()).apply()
+            }
+
+            fun saveSummary(c: Context, text: String, total: String) {
+                c.getSharedPreferences(P, 0).edit()
+                    .putString("wtext", text).putString("wtotal", total).apply()
+            }
+
+            fun summary(c: Context): Pair<String, String> {
+                val sp = c.getSharedPreferences(P, 0)
+                return Pair(sp.getString("wtotal", "—")!!, sp.getString("wtext", "Open app to load")!!)
+            }
+        }
+        __SMS_EOF_5__
+        mkdir -p "app/src/main/res/layout"
+        cat > "app/src/main/res/layout/activity_main.xml" <<'__SMS_EOF_6__'
+        <?xml version="1.0" encoding="utf-8"?>
+        <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+            android:orientation="vertical"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:padding="12dp">
+            <Button android:id="@+id/refresh"
+                android:layout_width="match_parent" android:layout_height="wrap_content"
+                android:text="Refresh from SMS"/>
+            <ScrollView android:layout_width="match_parent" android:layout_height="160dp">
+                <TextView android:id="@+id/summary"
+                    android:layout_width="match_parent" android:layout_height="wrap_content"
+                    android:textSize="15sp" android:paddingTop="8dp" android:paddingBottom="8dp"
+                    android:text="Loading…"/>
+            </ScrollView>
+            <TextView android:layout_width="match_parent" android:layout_height="wrap_content"
+                android:text="Transactions (tap to re-categorize):"
+                android:textStyle="bold" android:paddingTop="8dp" android:paddingBottom="4dp"/>
+            <ListView android:id="@+id/list"
+                android:layout_width="match_parent" android:layout_height="0dp"
+                android:layout_weight="1"/>
+        </LinearLayout>
+        __SMS_EOF_6__
+        mkdir -p "app/src/main/res/layout"
+        cat > "app/src/main/res/layout/item_txn.xml" <<'__SMS_EOF_7__'
+        <?xml version="1.0" encoding="utf-8"?>
+        <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+            android:orientation="horizontal"
+            android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:padding="10dp">
+            <LinearLayout android:orientation="vertical"
+                android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1">
+                <TextView android:id="@+id/merchant" android:layout_width="wrap_content"
+                    android:layout_height="wrap_content" android:textSize="15sp" android:textStyle="bold"/>
+                <TextView android:id="@+id/cat" android:layout_width="wrap_content"
+                    android:layout_height="wrap_content" android:textSize="12sp"/>
+            </LinearLayout>
+            <TextView android:id="@+id/amount" android:layout_width="wrap_content"
+                android:layout_height="wrap_content" android:textSize="15sp" android:gravity="end"/>
+        </LinearLayout>
+        __SMS_EOF_7__
+        mkdir -p "app/src/main/res/layout"
+        cat > "app/src/main/res/layout/widget_spending.xml" <<'__SMS_EOF_8__'
+        <?xml version="1.0" encoding="utf-8"?>
+        <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+            android:id="@+id/w_root"
+            android:orientation="vertical"
+            android:layout_width="match_parent" android:layout_height="match_parent"
+            android:background="#1E2A38" android:padding="12dp">
+            <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+                android:text="Spent this month" android:textColor="#9FB3C8" android:textSize="12sp"/>
+            <TextView android:id="@+id/w_total" android:layout_width="wrap_content"
+                android:layout_height="wrap_content" android:text="—"
+                android:textColor="#FFFFFF" android:textSize="22sp" android:textStyle="bold"/>
+            <TextView android:id="@+id/w_text" android:layout_width="wrap_content"
+                android:layout_height="wrap_content" android:text="Open app to load"
+                android:textColor="#CBD5E1" android:textSize="11sp" android:maxLines="4"/>
+        </LinearLayout>
+        __SMS_EOF_8__
+        mkdir -p "app/src/main/res/xml"
+        cat > "app/src/main/res/xml/spending_widget_info.xml" <<'__SMS_EOF_9__'
+        <?xml version="1.0" encoding="utf-8"?>
+        <appwidget-provider xmlns:android="http://schemas.android.com/apk/res/android"
+            android:minWidth="180dp"
+            android:minHeight="80dp"
+            android:updatePeriodMillis="1800000"
+            android:initialLayout="@layout/widget_spending"
+            android:resizeMode="horizontal|vertical"
+            android:widgetCategory="home_screen"/>
+        __SMS_EOF_9__
+        cat > "build.gradle" <<'__SMS_EOF_10__'
+        plugins {
+            id 'com.android.application' version '8.5.2' apply false
+            id 'org.jetbrains.kotlin.android' version '1.9.24' apply false
+        }
+        __SMS_EOF_10__
+        cat > "gradle.properties" <<'__SMS_EOF_11__'
+        android.useAndroidX=true
+        kotlin.code.style=official
+        org.gradle.jvmargs=-Xmx2048m
+        __SMS_EOF_11__
+        cat > "settings.gradle" <<'__SMS_EOF_12__'
+        pluginManagement {
+            repositories { google(); mavenCentral(); gradlePluginPortal() }
+        }
+        dependencyResolutionManagement {
+            repositories { google(); mavenCentral() }
+        }
+        rootProject.name = "SmsSpend"
+        include ":app"
+        __SMS_EOF_12__
+        echo "Project files generated:"
+        find . -type f -not -path './.git/*' | sort
+    - name: Build debug APK
+      run: |
+        gradle assembleDebug --no-daemon --stacktrace
+    - name: Upload APK
+      uses: actions/upload-artifact@v4
+      with:
+        name: SmsSpend-apk
+        path: app/build/outputs/apk/debug/app-debug.apk
+        if-no-files-found: error
