@@ -6,6 +6,8 @@ import com.example.smsspend.parser.ParsedTxn
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.withContext
+import org.json.JSONArray
+import org.json.JSONObject
 
 class Repository(private val appContext: Context) {
 
@@ -14,6 +16,7 @@ class Repository(private val appContext: Context) {
     private val ruleDao = db.merchantRuleDao()
     private val holdingDao = db.holdingDao()
     private val ipoAppDao = db.ipoApplicationDao()
+    private val balanceDao = db.balanceDao()
 
     fun txnsInPeriod(start: Long, end: Long): Flow<List<TxnEntity>> = txnDao.inPeriod(start, end)
 
@@ -22,12 +25,19 @@ class Repository(private val appContext: Context) {
 
     fun txnsForMerchant(merchant: String): Flow<List<TxnEntity>> = txnDao.forMerchant(merchant)
 
+    fun merchantsInPeriod(start: Long, end: Long): Flow<List<MerchantSum>> =
+        txnDao.merchantsInPeriod(start, end)
+
+    // ---- balance ----
+    fun latestBalance(): Flow<BalanceSnapshot?> = balanceDao.latest()
+
     // ---- portfolio / investments ----
     fun holdings(): Flow<List<Holding>> = holdingDao.all()
     fun dividendsByCompany(): Flow<List<MerchantSum>> = txnDao.dividendsByCompany()
     fun ipoTxns(): Flow<List<TxnEntity>> = txnDao.ipoTxns()
     fun ipoApplications(): Flow<List<IpoApplication>> = ipoAppDao.all()
     fun incomeTxns(): Flow<List<TxnEntity>> = txnDao.incomeTxns()
+    fun depositTxns(): Flow<List<TxnEntity>> = txnDao.depositTxns()
 
     /**
      * Reads the SMS inbox, cleans + categorizes each transaction (applying learned
@@ -70,6 +80,11 @@ class Repository(private val appContext: Context) {
         // IPO subscription requests.
         if (scan.ipoApps.isNotEmpty()) {
             ipoAppDao.insertAll(scan.ipoApps.map { IpoApplication(it.reference, it.date) })
+        }
+
+        // Running balance readings -> balance-over-time series for trends/predictions.
+        if (scan.balances.isNotEmpty()) {
+            balanceDao.insertAll(scan.balances.map { BalanceSnapshot(it.date, it.balance) })
         }
 
         txnDao.count() - before
@@ -115,4 +130,71 @@ class Repository(private val appContext: Context) {
     }
 
     suspend fun count(): Int = withContext(Dispatchers.IO) { txnDao.count() }
+
+    /**
+     * Builds a complete JSON snapshot of everything the app holds — transactions, learned
+     * rules, holdings, IPO applications and the balance series, plus the user's settings.
+     * Used by the "export / copy data" debug feature so it can be fed back for analysis.
+     * On-device only; the user chooses where it goes.
+     */
+    suspend fun exportJson(): String = withContext(Dispatchers.IO) {
+        val root = JSONObject()
+        root.put("app", "SMS Spend")
+        root.put("exportedAt", System.currentTimeMillis())
+        root.put("schemaVersion", 3)
+
+        root.put("settings", JSONObject().apply {
+            put("anchorDay", Prefs.getAnchorDay(appContext))
+            put("salaryAmount", Prefs.getSalaryAmount(appContext))
+            put("manualBalance", Prefs.getManualBalance(appContext))
+            put("investAsSpending", Prefs.getInvestAsSpending(appContext))
+            put("liveMsxPrices", Prefs.getLiveMsxPrices(appContext))
+        })
+
+        val txns = txnDao.allForExport()
+        root.put("transactionCount", txns.size)
+        root.put("transactions", JSONArray().apply {
+            for (t in txns) put(JSONObject().apply {
+                put("date", t.date)
+                put("type", t.type)
+                put("amount", t.amount)
+                put("merchant", t.merchantClean)
+                put("category", t.category)
+            })
+        })
+
+        root.put("rules", JSONArray().apply {
+            for (r in ruleDao.all()) put(JSONObject().apply {
+                put("merchant", r.merchantClean)
+                put("category", r.category)
+            })
+        })
+
+        root.put("holdings", JSONArray().apply {
+            for (h in holdingDao.allForExport()) put(JSONObject().apply {
+                put("name", h.name)
+                put("symbol", h.symbol)
+                put("shares", h.shares)
+                put("manualPrice", h.manualPrice)
+                put("lastPrice", h.lastPrice)
+                put("nextAgmDate", h.nextAgmDate)
+            })
+        })
+
+        root.put("ipoApplications", JSONArray().apply {
+            for (a in ipoAppDao.allForExport()) put(JSONObject().apply {
+                put("reference", a.reference)
+                put("date", a.date)
+            })
+        })
+
+        root.put("balances", JSONArray().apply {
+            for (b in balanceDao.allForExport()) put(JSONObject().apply {
+                put("date", b.date)
+                put("balance", b.balance)
+            })
+        })
+
+        root.toString(2)
+    }
 }

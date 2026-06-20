@@ -1,7 +1,11 @@
 package com.example.smsspend.ui
 
 import android.Manifest
+import android.content.ClipData
+import android.content.ClipboardManager
+import android.content.Context
 import android.content.pm.PackageManager
+import android.widget.Toast
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -12,6 +16,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.ShowChart
@@ -76,6 +81,12 @@ fun AppRoot(vm: MainViewModel) {
                 },
                 actions = {
                     if (current is Screen.Dashboard) {
+                        IconButton(onClick = {
+                            copyToClipboard(context, "SMS Spend view", vm.currentViewSummary())
+                            Toast.makeText(context, "Copied this view", Toast.LENGTH_SHORT).show()
+                        }) {
+                            Icon(Icons.Default.ContentCopy, contentDescription = "Copy this view")
+                        }
                         if (loading) {
                             CircularProgressIndicator(
                                 strokeWidth = 2.dp,
@@ -107,4 +118,10 @@ fun AppRoot(vm: MainViewModel) {
             }
         }
     }
+}
+
+/** Copies text to the system clipboard so the user can paste it elsewhere (e.g. into an AI). */
+fun copyToClipboard(context: Context, label: String, text: String) {
+    val cm = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+    cm.setPrimaryClip(ClipData.newPlainText(label, text))
 }

@@ -69,6 +69,11 @@ object SmsParser {
     private val agmCompany = Regex("Investor\\s+\\w+,\\s*(.+?)\\s+invites you to attend", RegexOption.IGNORE_CASE)
     private val agmDate = Regex("On\\s+(\\d{1,2}/\\d{1,2}/\\d{4})", RegexOption.IGNORE_CASE)
 
+    // Account balance carried in many bank SMS ("رصيدك الحالي هو <amt> OMR" / "balance is OMR <amt>").
+    private val balanceArabic = Regex("رصيد[^0-9]{0,40}?([0-9][0-9,]*(?:\\.[0-9]+)?)\\s*OMR")
+    private val balanceEnglishAfter = Regex("balance[^0-9]{0,20}?OMR\\s*([0-9][0-9,]*(?:\\.[0-9]+)?)", RegexOption.IGNORE_CASE)
+    private val balanceEnglishBefore = Regex("balance[^0-9]{0,20}?([0-9][0-9,]*(?:\\.[0-9]+)?)\\s*OMR", RegexOption.IGNORE_CASE)
+
     // Bidirectional/format control marks that appear in bank/MCD SMS and break regexes.
     private val bidiMarks = Regex("[\\u200E\\u200F\\u202A-\\u202E\\u2066-\\u2069\\u00AD]")
 
@@ -173,6 +178,23 @@ object SmsParser {
         return AgmInfo(company, meeting, date)
     }
 
+    /**
+     * Extracts the running account balance a transaction SMS reports ("رصيدك الحالي هو
+     * <amt> OMR"). This lets the app track real balance over time for trends/predictions —
+     * the user never has to type it. Returns null when the SMS carries no balance.
+     */
+    fun parseBalance(rawBody: String, date: Long): BalanceInfo? {
+        val body = normalize(rawBody)
+        if (!body.contains("OMR")) return null
+        val m = balanceArabic.find(body)
+            ?: balanceEnglishAfter.find(body)
+            ?: balanceEnglishBefore.find(body)
+            ?: return null
+        val amt = num(m.groupValues[1])
+        if (amt <= 0.0) return null
+        return BalanceInfo(amt, date)
+    }
+
     /** MCD IPO subscription-request confirmation — captures the application reference. */
     fun parseIpoApplication(rawBody: String, date: Long): IpoAppInfo? {
         val body = normalize(rawBody)
@@ -189,6 +211,9 @@ object SmsParser {
         }.timeInMillis
     } catch (e: Exception) { 0L }
 }
+
+/** The running account balance an SMS reported, at the time it was sent. */
+data class BalanceInfo(val balance: Double, val date: Long)
 
 /** An Annual General Meeting invite extracted from an SMS. */
 data class AgmInfo(val company: String, val meetingDate: Long, val smsDate: Long)

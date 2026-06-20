@@ -27,6 +27,15 @@
         android:maxLines="1"/>
 
     <TextView
+        android:id="@+id/w_trend"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text=""
+        android:textColor="#7DD3FC"
+        android:textSize="11sp"
+        android:maxLines="1"/>
+
+    <TextView
         android:id="@+id/w_breakdown"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"

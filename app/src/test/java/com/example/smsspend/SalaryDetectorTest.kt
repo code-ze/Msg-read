@@ -32,4 +32,33 @@ class SalaryDetectorTest {
     @Test fun emptyWhenNotEnough() {
         assertEquals(emptyList<Long>(), SalaryDetector.detect(listOf(Income(500.0, d(2026, Calendar.JANUARY, 20)))))
     }
+
+    @Test fun largeSalaryBeatsFrequentSmallTransfers() {
+        // Salary (1679) lands only twice; casual money people send recurs across MORE months.
+        // The salary must still win — it's the *largest* recurring deposit, not the most frequent.
+        val incomes = listOf(
+            Income(1679.0, d(2026, Calendar.APRIL, 23)),
+            Income(1679.0, d(2026, Calendar.MAY, 21)),
+            Income(50.0, d(2026, Calendar.MARCH, 3)),
+            Income(50.0, d(2026, Calendar.APRIL, 9)),
+            Income(50.0, d(2026, Calendar.MAY, 4)),
+            Income(50.0, d(2026, Calendar.JUNE, 5))
+        )
+        val dates = SalaryDetector.detect(incomes)
+        assertEquals(2, dates.size)
+        val days = dates.map { Calendar.getInstance().apply { timeInMillis = it }.get(Calendar.DAY_OF_MONTH) }
+        assertEquals(listOf(23, 21), days)
+    }
+
+    @Test fun pinnedAmountIsMatchedExactly() {
+        val incomes = listOf(
+            Income(1679.0, d(2026, Calendar.APRIL, 23)),
+            Income(1679.0, d(2026, Calendar.MAY, 21)),
+            Income(2000.0, d(2026, Calendar.MAY, 28)), // a bigger one-off; ignored when pinned
+            Income(50.0, d(2026, Calendar.JUNE, 5))
+        )
+        val dates = SalaryDetector.detect(incomes, expectedAmount = 1679.0)
+        val days = dates.map { Calendar.getInstance().apply { timeInMillis = it }.get(Calendar.DAY_OF_MONTH) }
+        assertEquals(listOf(23, 21), days)
+    }
 }

@@ -25,7 +25,10 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.example.smsspend.model.Insights
 import com.example.smsspend.parser.Categorizer
+import kotlin.math.abs
+import kotlin.math.roundToInt
 
 @Composable
 fun DashboardScreen(vm: MainViewModel) {
@@ -35,6 +38,10 @@ fun DashboardScreen(vm: MainViewModel) {
     val anchor by vm.anchorDay.collectAsStateWithLifecycle()
     val investAsSpend by vm.investAsSpending.collectAsStateWithLifecycle()
     val salaryDates by vm.salaryDates.collectAsStateWithLifecycle()
+    val insights by vm.insights.collectAsStateWithLifecycle()
+    val balance by vm.balance.collectAsStateWithLifecycle()
+    val prevSpent by vm.prevSpent.collectAsStateWithLifecycle()
+    val topMerchants by vm.topMerchants.collectAsStateWithLifecycle()
 
     Column(Modifier.fillMaxSize()) {
         PeriodBar(
@@ -84,6 +91,14 @@ fun DashboardScreen(vm: MainViewModel) {
             }
 
             item {
+                InsightsCard(
+                    balance = balance,
+                    insights = insights,
+                    prevSpent = prevSpent
+                )
+            }
+
+            item {
                 Text(
                     "By category",
                     style = MaterialTheme.typography.titleMedium,
@@ -116,6 +131,28 @@ fun DashboardScreen(vm: MainViewModel) {
                 }
             }
 
+            if (topMerchants.isNotEmpty()) {
+                item {
+                    Text(
+                        "Top merchants",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier.padding(start = 16.dp, top = 20.dp, bottom = 4.dp)
+                    )
+                }
+                item {
+                    Card(Modifier.fillMaxWidth().padding(horizontal = 16.dp)) {
+                        Column(Modifier.padding(vertical = 4.dp)) {
+                            topMerchants.take(8).forEach { m ->
+                                MerchantBar(m.merchantClean, m.total, m.count) {
+                                    vm.navigate(Screen.Merchant(m.merchantClean))
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
             item {
                 Text(
                     "Transactions",
@@ -141,6 +178,93 @@ fun DashboardScreen(vm: MainViewModel) {
             }
             item { Box(Modifier.height(24.dp)) }
         }
+    }
+}
+
+@Composable
+private fun InsightsCard(balance: Double, insights: Insights, prevSpent: Double) {
+    Card(
+        Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, top = 12.dp)
+    ) {
+        Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            if (balance > 0) {
+                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        "Balance",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.weight(1f)
+                    )
+                    Text(
+                        "${Format.omr(balance)} OMR",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+                HorizontalDivider()
+            }
+            InsightLine("Per day", "${Format.omr(insights.perDay)} OMR",
+                "day ${insights.daysElapsed}/${insights.daysTotal}")
+            InsightLine("Projected this period", "${Format.omr(insights.projectedSpend)} OMR",
+                trendSuffix(insights.projectedSpend, prevSpent))
+            insights.runwayDays?.let {
+                InsightLine("Runway at this pace", "~$it days", null)
+            }
+            insights.largest?.let {
+                InsightLine("Largest", "${Format.omr(it.amount)} OMR", it.merchantClean)
+            }
+            insights.busiestDayLabel?.let {
+                InsightLine("Busiest day", it, null)
+            }
+        }
+    }
+}
+
+/** "+12% vs last" style suffix comparing the projection to the previous period's spend. */
+private fun trendSuffix(projected: Double, prevSpent: Double): String? {
+    if (prevSpent <= 0) return null
+    val pct = ((projected - prevSpent) / prevSpent * 100).roundToInt()
+    val arrow = if (pct >= 0) "▲" else "▼"
+    return "$arrow${abs(pct)}% vs last"
+}
+
+@Composable
+private fun InsightLine(label: String, value: String, hint: String?) {
+    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+        Text(
+            label,
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.weight(1f)
+        )
+        Column(horizontalAlignment = Alignment.End) {
+            Text(value, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold)
+            if (hint != null) {
+                Text(hint, style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+        }
+    }
+}
+
+@Composable
+private fun MerchantBar(merchant: String, total: Double, count: Int, onClick: () -> Unit) {
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick)
+            .padding(horizontal = 14.dp, vertical = 10.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Column(Modifier.weight(1f)) {
+            Text(merchant, style = MaterialTheme.typography.bodyMedium,
+                fontWeight = FontWeight.Medium, maxLines = 1)
+            Text("$count item${if (count == 1) "" else "s"}",
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+        Text(Format.omr(total), style = MaterialTheme.typography.bodyMedium,
+            fontWeight = FontWeight.SemiBold)
     }
 }
 

@@ -7,16 +7,37 @@ import kotlin.math.abs
  * Auto-detects salary deposits from income transactions so pay cycles can follow the real
  * landing date each month (which drifts — e.g. the 19th one month, the 23rd the next).
  *
- * Heuristic: cluster income amounts that are similar (salary is roughly constant, with
- * tolerance for raises), then pick the cluster that recurs across the most distinct months —
- * that's the salary. Returns one boundary date per month (the largest matching deposit that
- * month). Pure and unit-tested.
+ * The salary is the *largest deposit that recurs roughly once a month*. Earlier logic picked
+ * the cluster that spanned the most months, but casual "people sending me money" deposits
+ * recur across more months than the handful of captured salary payments — so the salary lost.
+ * We now cluster by similar amount (salary is near-constant, with tolerance for raises) and
+ * pick the recurring cluster with the **largest** amount; ad-hoc transfers are smaller and
+ * lose to the salary. If the user pins their exact salary amount we match that directly.
+ *
+ * Returns one boundary date per month (the deposit closest to the salary amount that month).
+ * Pure and unit-tested.
  */
 object SalaryDetector {
 
     data class Income(val amount: Double, val date: Long)
 
-    fun detect(incomes: List<Income>, tolerance: Double = 0.18): List<Long> {
+    /**
+     * @param expectedAmount if > 0, the user-pinned salary; deposits within [pinTolerance]
+     *        of it are treated as salary (most reliable). 0 means auto-detect.
+     */
+    fun detect(
+        incomes: List<Income>,
+        expectedAmount: Double = 0.0,
+        tolerance: Double = 0.18,
+        pinTolerance: Double = 0.08
+    ): List<Long> {
+        if (expectedAmount > 0.0) {
+            val matches = incomes.filter {
+                abs(it.amount - expectedAmount) / expectedAmount <= pinTolerance
+            }
+            return oneBoundaryPerMonth(matches, expectedAmount)
+        }
+
         if (incomes.size < 2) return emptyList()
 
         // Greedily cluster by similar amount (sorted so near amounts sit together).
@@ -37,15 +58,22 @@ object SalaryDetector {
         val scored = clusters.mapNotNull { cl ->
             val byMonth = cl.groupBy { ym(it.date) }
             if (byMonth.size < 2) return@mapNotNull null // must recur to be a salary
-            val dates = byMonth.values.map { group -> group.maxByOrNull { it.amount }!!.date }.sorted()
             val amounts = cl.map { it.amount }.sorted()
-            Scored(byMonth.size, amounts[amounts.size / 2], dates)
+            val median = amounts[amounts.size / 2]
+            Scored(byMonth.size, median, oneBoundaryPerMonth(cl, median))
         }
 
-        // Salary = recurs across the most months; tie-break on the larger amount.
-        val best = scored.maxWithOrNull(compareBy({ it.months }, { it.median })) ?: return emptyList()
+        // Salary = the largest recurring deposit; tie-break on the cluster spanning more months.
+        val best = scored.maxWithOrNull(compareBy({ it.median }, { it.months })) ?: return emptyList()
         return best.dates
     }
+
+    /** One date per calendar month: the deposit nearest [target], to keep boundaries clean. */
+    private fun oneBoundaryPerMonth(incomes: List<Income>, target: Double): List<Long> =
+        incomes.groupBy { ym(it.date) }
+            .values
+            .map { group -> group.minByOrNull { abs(it.amount - target) }!!.date }
+            .sorted()
 
     /** Year*12 + month, so consecutive months are adjacent integers. */
     private fun ym(date: Long): Int {

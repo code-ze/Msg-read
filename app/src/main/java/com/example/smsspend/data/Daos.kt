@@ -41,11 +41,40 @@ interface TxnDao {
     @Query("SELECT * FROM txn WHERE type IN ('DEPOSIT', 'WALLET_IN') ORDER BY date")
     fun incomeTxns(): Flow<List<TxnEntity>>
 
+    /** Bank deposits only (salary lands as a deposit, not a wallet transfer). */
+    @Query("SELECT * FROM txn WHERE type = 'DEPOSIT' ORDER BY date")
+    fun depositTxns(): Flow<List<TxnEntity>>
+
+    /** Per-merchant spend within a period (granular "where the money goes"). */
+    @Query(
+        "SELECT merchantClean, SUM(amount) AS total, COUNT(*) AS count FROM txn " +
+            "WHERE date >= :start AND date < :end AND type IN ('DEBIT', 'WALLET_OUT') " +
+            "AND category NOT IN ('Income', 'Dividends') " +
+            "GROUP BY merchantClean ORDER BY total DESC"
+    )
+    fun merchantsInPeriod(start: Long, end: Long): Flow<List<MerchantSum>>
+
+    @Query("SELECT * FROM txn ORDER BY date DESC")
+    suspend fun allForExport(): List<TxnEntity>
+
     @Query("SELECT COUNT(*) FROM txn")
     suspend fun count(): Int
 
     @Query("DELETE FROM txn")
     suspend fun clear()
+}
+
+@Dao
+interface BalanceDao {
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertAll(items: List<BalanceSnapshot>)
+
+    /** Most recent balance reading (the closest thing to "money in the bank right now"). */
+    @Query("SELECT * FROM balance_snapshot ORDER BY date DESC LIMIT 1")
+    fun latest(): Flow<BalanceSnapshot?>
+
+    @Query("SELECT * FROM balance_snapshot ORDER BY date DESC")
+    suspend fun allForExport(): List<BalanceSnapshot>
 }
 
 @Dao
@@ -58,6 +87,9 @@ interface HoldingDao {
 
     @Query("SELECT * FROM holding WHERE symbol != ''")
     suspend fun withSymbols(): List<Holding>
+
+    @Query("SELECT * FROM holding ORDER BY name COLLATE NOCASE")
+    suspend fun allForExport(): List<Holding>
 
     @Insert
     suspend fun insert(holding: Holding): Long
@@ -82,6 +114,9 @@ interface IpoApplicationDao {
 
     @Query("SELECT * FROM ipo_application ORDER BY date DESC")
     fun all(): Flow<List<IpoApplication>>
+
+    @Query("SELECT * FROM ipo_application ORDER BY date DESC")
+    suspend fun allForExport(): List<IpoApplication>
 }
 
 @Dao

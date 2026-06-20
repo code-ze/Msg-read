@@ -72,6 +72,7 @@ class BreakdownWidget : AppWidgetProvider() {
             val rv = RemoteViews(c.packageName, R.layout.widget_breakdown)
             rv.setTextViewText(R.id.w_title, "$title · ${Prefs.widgetLabel(c)}")
             rv.setTextViewText(R.id.w_value, Prefs.widgetValue(c, metric))
+            rv.setTextViewText(R.id.w_trend, Prefs.widgetTrend(c))
             rv.setTextViewText(R.id.w_breakdown, Prefs.widgetBreakdown(c))
             rv.setOnClickPendingIntent(R.id.w_root, WidgetUpdater.openAppIntent(c))
             mgr.updateAppWidget(id, rv)

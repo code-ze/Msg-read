@@ -1,6 +1,8 @@
 package com.example.smsspend.ui
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -13,6 +15,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -49,7 +52,47 @@ fun CategoryDetailScreen(vm: MainViewModel, category: String) {
                 modifier = Modifier.padding(horizontal = 16.dp)
             )
         } else {
+            val byMerchant = remember(txns) {
+                txns.groupBy { it.merchantClean }
+                    .map { (name, list) -> Triple(name, list.sumOf { it.amount }, list.size) }
+                    .sortedByDescending { it.second }
+            }
             LazyColumn(Modifier.fillMaxWidth()) {
+                if (byMerchant.size > 1) {
+                    item {
+                        Text(
+                            "By merchant",
+                            style = MaterialTheme.typography.titleSmall,
+                            fontWeight = FontWeight.Bold,
+                            modifier = Modifier.padding(start = 16.dp, top = 4.dp, bottom = 4.dp)
+                        )
+                    }
+                    items(byMerchant, key = { "m_" + it.first }) { (name, sum, n) ->
+                        Row(
+                            Modifier.fillMaxWidth()
+                                .clickable { vm.navigate(Screen.Merchant(name)) }
+                                .padding(horizontal = 16.dp, vertical = 10.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Column(Modifier.weight(1f)) {
+                                Text(name, fontWeight = FontWeight.Medium, maxLines = 1)
+                                Text("$n item${if (n == 1) "" else "s"}",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            }
+                            Text(Format.omr(sum), fontWeight = FontWeight.SemiBold)
+                        }
+                        HorizontalDivider(Modifier.padding(start = 16.dp))
+                    }
+                    item {
+                        Text(
+                            "All transactions",
+                            style = MaterialTheme.typography.titleSmall,
+                            fontWeight = FontWeight.Bold,
+                            modifier = Modifier.padding(start = 16.dp, top = 16.dp, bottom = 4.dp)
+                        )
+                    }
+                }
                 items(txns, key = { it.key }) { t ->
                     TxnRow(t) { vm.navigate(Screen.Merchant(t.merchantClean)) }
                     HorizontalDivider(Modifier.padding(start = 42.dp))

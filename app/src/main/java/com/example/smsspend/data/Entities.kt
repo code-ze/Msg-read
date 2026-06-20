@@ -58,3 +58,14 @@ data class IpoApplication(
     @PrimaryKey val reference: String,
     val date: Long
 )
+
+/**
+ * A running-balance reading scraped from a bank SMS ("رصيدك الحالي هو …"). Keyed by the SMS
+ * timestamp so re-importing is idempotent. This builds a real balance-over-time series the
+ * app uses for the current balance and for spend/runway predictions — no manual entry needed.
+ */
+@Entity(tableName = "balance_snapshot")
+data class BalanceSnapshot(
+    @PrimaryKey val date: Long,
+    val balance: Double
+)
