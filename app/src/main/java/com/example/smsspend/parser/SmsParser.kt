@@ -61,8 +61,27 @@ object SmsParser {
     private val genericDebitMerchant = Regex("في (.+?)(?:\\s+بتاريخ|\\s+على|\\.)")
     private val leadingCode = Regex("^[0-9]{4,}-?\\s*")
 
+    // MCD (Muscat Clearing & Depository) — cash dividend per company
+    private val mcdDivCompany = Regex("لشركة\\s*(.+)")
+    // MCD — IPO subscription request registration
+    private val ipoAppRef = Regex("طلب الإكتتاب رقم\\s*\"?([A-Za-z0-9\\-]+)\"?")
+    // AGM invite (English)
+    private val agmCompany = Regex("Investor\\s+\\w+,\\s*(.+?)\\s+invites you to attend", RegexOption.IGNORE_CASE)
+    private val agmDate = Regex("On\\s+(\\d{1,2}/\\d{1,2}/\\d{4})", RegexOption.IGNORE_CASE)
+
+    // Bidirectional/format control marks that appear in bank/MCD SMS and break regexes.
+    private val bidiMarks = Regex("[\\u200E\\u200F\\u202A-\\u202E\\u2066-\\u2069\\u00AD]")
+
+    /** Strips bidi/format control characters and normalizes spacing so regexes are stable. */
+    fun normalize(s: String): String =
+        bidiMarks.replace(s, "").replace(' ', ' ').replace(Regex("[\\s\\u00A0]+"), " ").trim()
+
     /** Quick filter so callers can skip clearly-irrelevant messages cheaply. */
-    fun looksRelevant(body: String): Boolean = body.contains("OMR")
+    fun looksRelevant(body: String): Boolean =
+        body.contains("OMR") ||
+            body.contains("أرباح نقدية") ||
+            body.contains("طلب الإكتتاب") ||
+            body.contains("Annual General Meeting", ignoreCase = true)
 
     private fun num(s: String): Double = s.replace(",", "").toDoubleOrNull() ?: 0.0
 
@@ -75,7 +94,8 @@ object SmsParser {
     private fun stableKey(body: String, date: Long): String =
         abs((body + "|" + date).hashCode()).toString()
 
-    fun parse(body: String, date: Long): ParsedTxn? {
+    fun parse(rawBody: String, date: Long): ParsedTxn? {
+        val body = normalize(rawBody)
         if (!looksRelevant(body)) return null
         val key = stableKey(body, date)
 
@@ -88,7 +108,14 @@ object SmsParser {
                 ParsedTxn(TxnType.IPO, amt, m, date, key, body)
             }
 
-            // 5. Dividend — must be checked before the generic deposit branch
+            // 5a. MCD cash dividend per company ("أرباح نقدية ... لشركة <company>")
+            body.contains("أرباح نقدية") -> {
+                val amt = firstBeforeOmr(body) ?: firstAfterOmr(body) ?: return null
+                val m = mcdDivCompany.find(body)?.groupValues?.get(1)?.trim() ?: "Dividend"
+                ParsedTxn(TxnType.DIVIDEND, amt, m, date, key, body)
+            }
+
+            // 5b. Bank dividend — must be checked before the generic deposit branch
             body.contains("DIV payment", ignoreCase = true) ||
                 (body.contains("تم إيداع") && body.contains("DIV", ignoreCase = false)) -> {
                 val amt = firstBeforeOmr(body) ?: return null
@@ -136,4 +163,35 @@ object SmsParser {
             else -> null
         }
     }
+
+    /** AGM (Annual General Meeting) invite — reveals a company you hold and its meeting date. */
+    fun parseAgm(rawBody: String, date: Long): AgmInfo? {
+        val body = normalize(rawBody)
+        if (!body.contains("Annual General Meeting", ignoreCase = true)) return null
+        val company = agmCompany.find(body)?.groupValues?.get(1)?.trim() ?: return null
+        val meeting = agmDate.find(body)?.groupValues?.get(1)?.let { parseDmy(it) } ?: 0L
+        return AgmInfo(company, meeting, date)
+    }
+
+    /** MCD IPO subscription-request confirmation — captures the application reference. */
+    fun parseIpoApplication(rawBody: String, date: Long): IpoAppInfo? {
+        val body = normalize(rawBody)
+        if (!body.contains("طلب الإكتتاب")) return null
+        val ref = ipoAppRef.find(body)?.groupValues?.get(1)?.trim() ?: return null
+        return IpoAppInfo(ref, date)
+    }
+
+    /** Parses a dd/MM/yyyy date to epoch millis (local), or 0 on failure. */
+    private fun parseDmy(s: String): Long = try {
+        val p = s.split("/")
+        java.util.Calendar.getInstance().apply {
+            clear(); set(p[2].toInt(), p[1].toInt() - 1, p[0].toInt(), 12, 0, 0)
+        }.timeInMillis
+    } catch (e: Exception) { 0L }
 }
+
+/** An Annual General Meeting invite extracted from an SMS. */
+data class AgmInfo(val company: String, val meetingDate: Long, val smsDate: Long)
+
+/** An IPO subscription-request confirmation (MCD). */
+data class IpoAppInfo(val reference: String, val date: Long)

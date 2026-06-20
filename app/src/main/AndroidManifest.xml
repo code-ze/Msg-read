@@ -1,8 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
-    <!-- On-device only. Reads the SMS inbox; makes no network connections. -->
+    <!-- Reads the SMS inbox; data stays on-device. -->
     <uses-permission android:name="android.permission.READ_SMS"/>
+    <!-- Used only when "Live MSX prices" is enabled in Settings (off by default). -->
+    <uses-permission android:name="android.permission.INTERNET"/>
 
     <application
         android:allowBackup="true"

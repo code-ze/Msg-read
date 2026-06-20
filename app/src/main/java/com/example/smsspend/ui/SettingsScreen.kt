@@ -25,6 +25,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 fun SettingsScreen(vm: MainViewModel) {
     val anchor by vm.anchorDay.collectAsStateWithLifecycle()
     val investAsSpend by vm.investAsSpending.collectAsStateWithLifecycle()
+    val liveMsx by vm.liveMsxPrices.collectAsStateWithLifecycle()
 
     Column(
         Modifier
@@ -80,11 +81,35 @@ fun SettingsScreen(vm: MainViewModel) {
         }
 
         Card(Modifier.fillMaxWidth()) {
+            Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text("Live MSX prices", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Column(Modifier.weight(1f)) {
+                        Text("Fetch stock prices from MSX")
+                        Text(
+                            if (liveMsx)
+                                "On — the app contacts msx.om to update holding prices. Best-effort; manual price is used if a fetch fails."
+                            else
+                                "Off — prices stay manual and the app makes no network calls.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                    Switch(checked = liveMsx, onCheckedChange = { vm.setLiveMsxPrices(it) })
+                }
+            }
+        }
+
+        Card(Modifier.fillMaxWidth()) {
             Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 Text("Privacy", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
                 Text(
-                    "Everything stays on your device. The app only reads SMS (READ_SMS) and " +
-                        "makes no network connections.",
+                    if (liveMsx)
+                        "SMS stays on your device (READ_SMS). The only network use is fetching " +
+                            "stock prices from MSX, which you enabled above."
+                    else
+                        "Everything stays on your device. The app only reads SMS (READ_SMS) and " +
+                            "makes no network connections.",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )

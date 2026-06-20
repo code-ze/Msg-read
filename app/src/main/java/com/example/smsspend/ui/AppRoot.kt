@@ -14,6 +14,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.ShowChart
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -58,6 +59,7 @@ fun AppRoot(vm: MainViewModel) {
         is Screen.Dashboard -> "SMS Spend"
         is Screen.Category -> current.name
         is Screen.Merchant -> current.name
+        is Screen.Investments -> "Investments"
         is Screen.Settings -> "Settings"
     }
 
@@ -84,6 +86,9 @@ fun AppRoot(vm: MainViewModel) {
                                 Icon(Icons.Default.Refresh, contentDescription = "Refresh from SMS")
                             }
                         }
+                        IconButton(onClick = { vm.navigate(Screen.Investments) }) {
+                            Icon(Icons.Default.ShowChart, contentDescription = "Investments")
+                        }
                         IconButton(onClick = { vm.navigate(Screen.Settings) }) {
                             Icon(Icons.Default.Settings, contentDescription = "Settings")
                         }
@@ -97,6 +102,7 @@ fun AppRoot(vm: MainViewModel) {
                 is Screen.Dashboard -> DashboardScreen(vm)
                 is Screen.Category -> CategoryDetailScreen(vm, s.name)
                 is Screen.Merchant -> MerchantDetailScreen(vm, s.name)
+                is Screen.Investments -> InvestmentsScreen(vm)
                 is Screen.Settings -> SettingsScreen(vm)
             }
         }

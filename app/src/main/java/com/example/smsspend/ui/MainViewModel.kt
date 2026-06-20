@@ -3,6 +3,9 @@ package com.example.smsspend.ui
 import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.example.smsspend.data.Holding
+import com.example.smsspend.data.IpoApplication
+import com.example.smsspend.data.MerchantSum
 import com.example.smsspend.data.Prefs
 import com.example.smsspend.data.Repository
 import com.example.smsspend.data.TxnEntity
@@ -31,6 +34,7 @@ sealed interface Screen {
     data object Dashboard : Screen
     data class Category(val name: String) : Screen
     data class Merchant(val name: String) : Screen
+    data object Investments : Screen
     data object Settings : Screen
 }
 
@@ -44,6 +48,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
 
     val anchorDay = MutableStateFlow(Prefs.getAnchorDay(app))
     val investAsSpending = MutableStateFlow(Prefs.getInvestAsSpending(app))
+    val liveMsxPrices = MutableStateFlow(Prefs.getLiveMsxPrices(app))
 
     val periodReq = MutableStateFlow<PeriodReq>(PeriodReq.Cycle(0))
 
@@ -71,6 +76,43 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         repo.txnsForCategory(start, end, category)
 
     fun txnsForMerchant(merchant: String) = repo.txnsForMerchant(merchant)
+
+    // ---- portfolio ----
+    val holdings: StateFlow<List<Holding>> =
+        repo.holdings().stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+    val dividendsByCompany: StateFlow<List<MerchantSum>> =
+        repo.dividendsByCompany().stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+    val ipoTxns: StateFlow<List<TxnEntity>> =
+        repo.ipoTxns().stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+    val ipoApplications: StateFlow<List<IpoApplication>> =
+        repo.ipoApplications().stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    val pricesLoading = MutableStateFlow(false)
+
+    fun addHolding(name: String, symbol: String, shares: Double, manualPrice: Double) {
+        viewModelScope.launch { repo.addHolding(name, symbol, shares, manualPrice) }
+    }
+    fun updateHolding(holding: Holding) { viewModelScope.launch { repo.updateHolding(holding) } }
+    fun deleteHolding(holding: Holding) { viewModelScope.launch { repo.deleteHolding(holding) } }
+
+    fun refreshPrices() {
+        viewModelScope.launch {
+            pricesLoading.value = true
+            try {
+                val n = repo.refreshPrices()
+                importStatus.value = if (n > 0) "Updated $n price(s)" else "No prices fetched"
+            } catch (e: Exception) {
+                importStatus.value = "Price fetch failed"
+            } finally {
+                pricesLoading.value = false
+            }
+        }
+    }
+
+    fun setLiveMsxPrices(v: Boolean) {
+        Prefs.setLiveMsxPrices(getApplication<Application>(), v)
+        liveMsxPrices.value = v
+    }
 
     private fun resolve(req: PeriodReq, anchor: Int): Period {
         val now = System.currentTimeMillis()

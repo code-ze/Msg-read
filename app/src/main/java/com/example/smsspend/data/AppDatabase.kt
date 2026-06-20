@@ -6,13 +6,15 @@ import androidx.room.Room
 import androidx.room.RoomDatabase
 
 @Database(
-    entities = [TxnEntity::class, MerchantRuleEntity::class],
-    version = 1,
+    entities = [TxnEntity::class, MerchantRuleEntity::class, Holding::class, IpoApplication::class],
+    version = 2,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
     abstract fun txnDao(): TxnDao
     abstract fun merchantRuleDao(): MerchantRuleDao
+    abstract fun holdingDao(): HoldingDao
+    abstract fun ipoApplicationDao(): IpoApplicationDao
 
     companion object {
         @Volatile private var INSTANCE: AppDatabase? = null

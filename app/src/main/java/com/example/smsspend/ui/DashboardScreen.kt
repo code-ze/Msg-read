@@ -76,7 +76,7 @@ fun DashboardScreen(vm: MainViewModel) {
                         categoryColor(Categorizer.INVESTMENTS),
                         Modifier
                             .weight(1f)
-                            .clickable { vm.navigate(Screen.Category(Categorizer.INVESTMENTS)) }
+                            .clickable { vm.navigate(Screen.Investments) }
                     )
                 }
             }

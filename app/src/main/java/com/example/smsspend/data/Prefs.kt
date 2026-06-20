@@ -11,6 +11,7 @@ object Prefs {
     private const val FILE = "smsspend"
     private const val KEY_ANCHOR = "anchor_day"
     private const val KEY_INVEST_AS_SPEND = "invest_as_spend"
+    private const val KEY_LIVE_MSX = "live_msx_prices"
 
     fun sp(c: Context) = c.getSharedPreferences(FILE, Context.MODE_PRIVATE)
 
@@ -18,6 +19,10 @@ object Prefs {
     fun setAnchorDay(c: Context, v: Int) = sp(c).edit().putInt(KEY_ANCHOR, v.coerceIn(1, 31)).apply()
     fun getInvestAsSpending(c: Context): Boolean = sp(c).getBoolean(KEY_INVEST_AS_SPEND, false)
     fun setInvestAsSpending(c: Context, v: Boolean) = sp(c).edit().putBoolean(KEY_INVEST_AS_SPEND, v).apply()
+
+    /** Opt-in: fetch live prices from MSX (adds network use). Off by default. */
+    fun getLiveMsxPrices(c: Context): Boolean = sp(c).getBoolean(KEY_LIVE_MSX, false)
+    fun setLiveMsxPrices(c: Context, v: Boolean) = sp(c).edit().putBoolean(KEY_LIVE_MSX, v).apply()
 
     // --- per-widget config: which metric this widget shows (spent/income/net/invested) ---
     val metricLabels = linkedMapOf(

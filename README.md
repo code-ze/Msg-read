@@ -20,8 +20,20 @@ connections.
   with its full history.
 - **IPO & dividends** — IPO subscriptions are tracked as *Investments*, dividend payouts
   as *Dividends*. A Settings toggle decides whether IPO buys count toward "Spent".
+- **Investments / portfolio** — a dedicated screen for your stocks: enter shares + price
+  per holding to see market value, with dividends auto-tallied per company (bank + MCD
+  messages), your IPO subscriptions, and AGM dates auto-discovered from SMS. Optionally
+  fetch live prices from MSX (see below).
 - **Resizable widgets** — a compact metric widget and a metric + top-categories widget,
   each with a config screen to choose what it shows.
+
+## MSX prices & network
+
+The app is on-device by default. The Investments screen works fully offline with
+manually entered prices. If you turn on **Settings → Live MSX prices**, the app adds the
+`INTERNET` permission's usage to fetch quotes from `msx.om` by symbol. MSX has no official
+API and blocks non-browser clients, so live fetch is **best-effort** and falls back to your
+manual price whenever it can't reach a quote. SMS data never leaves the device either way.
 
 ## Build the APK (from a phone browser, no computer needed)
 
@@ -56,5 +68,5 @@ app/src/test/  JVM unit tests for the parser, categorizer, periods, totals
   a regex without updating/adding a test.
 - Storage is a Room database (`smsspend.db`); learned per-merchant rules live in
   `merchant_rule`.
-- On-device only. The single permission is `READ_SMS`. Ask the owner before adding any new
-  permission or dependency.
+- Permissions: `READ_SMS` (always) and `INTERNET` (used only when Live MSX prices is on).
+  Ask the owner before adding any further permission or dependency.
