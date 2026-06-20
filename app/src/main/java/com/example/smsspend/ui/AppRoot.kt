@@ -15,14 +15,14 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.ReceiptLong
+import androidx.compose.material.icons.automirrored.filled.ShowChart
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Lightbulb
 import androidx.compose.material.icons.filled.PieChart
-import androidx.compose.material.icons.filled.ReceiptLong
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Settings
-import androidx.compose.material.icons.filled.ShowChart
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -46,10 +46,10 @@ private data class Tab(val screen: Screen, val label: String, val icon: ImageVec
 
 private val tabs = listOf(
     Tab(Screen.Dashboard, "Home", Icons.Filled.Home),
-    Tab(Screen.Transactions, "Activity", Icons.Filled.ReceiptLong),
+    Tab(Screen.Transactions, "Activity", Icons.AutoMirrored.Filled.ReceiptLong),
     Tab(Screen.Analytics, "Analytics", Icons.Filled.PieChart),
     Tab(Screen.Insights, "Insights", Icons.Filled.Lightbulb),
-    Tab(Screen.Investments, "Portfolio", Icons.Filled.ShowChart)
+    Tab(Screen.Investments, "Portfolio", Icons.AutoMirrored.Filled.ShowChart)
 )
 
 @OptIn(ExperimentalMaterial3Api::class)

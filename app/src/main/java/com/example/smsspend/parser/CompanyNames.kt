@@ -10,6 +10,12 @@ package com.example.smsspend.parser
  */
 object CompanyNames {
 
+    // Declared first: `normalized` below calls norm() during init, which needs this.
+    private val bidi = Regex("[\\u200E\\u200F\\u202A-\\u202E\\u2066-\\u2069\\u00AD]")
+
+    private fun norm(s: String): String =
+        bidi.replace(s, "").replace(Regex("[\\s\\u00A0]+"), " ").trim().uppercase()
+
     // canonical display name -> recognizable variants (any language / spelling / code)
     private val aliases: List<Pair<String, List<String>>> = listOf(
         "OQ Exploration & Production" to listOf("OQ EXPLORATIO", "OQ EXPLORATION", "OQEP", "اوكيو للاستكشاف", "اوكيو للاستكشاف والانتاج"),
@@ -35,11 +41,6 @@ object CompanyNames {
     // Pre-normalized for fast matching.
     private val normalized: List<Pair<String, List<String>>> =
         aliases.map { (canon, variants) -> canon to variants.map { norm(it) } }
-
-    private val bidi = Regex("[\\u200E\\u200F\\u202A-\\u202E\\u2066-\\u2069\\u00AD]")
-
-    private fun norm(s: String): String =
-        bidi.replace(s, "").replace(Regex("[\\s\\u00A0]+"), " ").trim().uppercase()
 
     /** Returns the canonical company name for [name], or [name] unchanged if unrecognized. */
     fun canonical(name: String): String {

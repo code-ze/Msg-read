@@ -35,7 +35,6 @@ fun InsightsScreen(vm: MainViewModel) {
     val recs by vm.recommendations.collectAsStateWithLifecycle()
     val safe by vm.safeToSpend.collectAsStateWithLifecycle()
     val insights by vm.insights.collectAsStateWithLifecycle()
-    val balance by vm.balance.collectAsStateWithLifecycle()
 
     Column(Modifier.fillMaxSize()) {
         PeriodBar(
@@ -48,7 +47,7 @@ fun InsightsScreen(vm: MainViewModel) {
         )
 
         LazyColumn(Modifier.fillMaxSize()) {
-            item { SafeToSpendCard(safe, insights.perDay, balance) }
+            item { SafeToSpendCard(safe, insights.perDay) }
 
             item { SectionHeader("Recommendations") }
 
@@ -82,7 +81,7 @@ fun InsightsScreen(vm: MainViewModel) {
 }
 
 @Composable
-private fun SafeToSpendCard(safe: Double, perDay: Double, balance: Double) {
+private fun SafeToSpendCard(safe: Double, perDay: Double) {
     Card(
         Modifier.fillMaxWidth().padding(16.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
