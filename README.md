@@ -22,6 +22,12 @@ connections.
 - **Bank balance from SMS** — your running balance is read straight from bank messages
   ("رصيدك الحالي هو …") into a balance-over-time series; no typing needed (with a manual
   override available).
+- **Charts** — a donut of where your money goes on the dashboard (tap a slice to drill in),
+  a sub-category donut inside each category, and a balance-trend sparkline.
+- **Categories & sub-categories** — create your own categories (e.g. **Rent**) and split any
+  category into sub-categories (e.g. **Utilities → Electricity / Water**). Common splits are
+  seeded and auto-detected (NAMA→Electricity, DIAM→Water). Assigning a category/sub-category
+  to a merchant applies to **all** its past and future transactions automatically.
 - **Smart categorization that learns** — re-categorize a merchant once and **every**
   transaction from that merchant updates (fixing one TALABAT fixes them all). Merchant
   names are cleaned up automatically.

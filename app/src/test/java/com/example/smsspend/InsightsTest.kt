@@ -33,8 +33,11 @@ class InsightsTest {
             debit(20.0, "Talabat", "Food Delivery", d(2026, Calendar.JANUARY, 5)),
             debit(100.0, "Lulu", "Groceries", d(2026, Calendar.JANUARY, 3)),
             // income should never count as spending
-            TxnEntity("inc", "DEPOSIT", 500.0, "Deposit", "Deposit",
-                d(2026, Calendar.JANUARY, 4), "Income", "")
+            TxnEntity(
+                key = "inc", type = "DEPOSIT", amount = 500.0, merchantRaw = "Deposit",
+                merchantClean = "Deposit", date = d(2026, Calendar.JANUARY, 4),
+                category = "Income", body = ""
+            )
         )
 
         val ins = Insights.compute(txns, period, now, balance = 300.0)

@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -42,6 +43,7 @@ fun DashboardScreen(vm: MainViewModel) {
     val balance by vm.balance.collectAsStateWithLifecycle()
     val prevSpent by vm.prevSpent.collectAsStateWithLifecycle()
     val topMerchants by vm.topMerchants.collectAsStateWithLifecycle()
+    val balanceSeries by vm.balanceSeries.collectAsStateWithLifecycle()
 
     Column(Modifier.fillMaxSize()) {
         PeriodBar(
@@ -98,9 +100,13 @@ fun DashboardScreen(vm: MainViewModel) {
                 )
             }
 
+            if (balanceSeries.size >= 2) {
+                item { BalanceTrendCard(balanceSeries) }
+            }
+
             item {
                 Text(
-                    "By category",
+                    "Where it goes",
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.Bold,
                     modifier = Modifier.padding(start = 16.dp, top = 20.dp, bottom = 4.dp)
@@ -118,15 +124,8 @@ fun DashboardScreen(vm: MainViewModel) {
                 }
             } else {
                 item {
-                    val max = totals.byCategory.maxOf { it.total }.coerceAtLeast(0.001)
-                    Card(Modifier.fillMaxWidth().padding(horizontal = 16.dp)) {
-                        Column(Modifier.padding(vertical = 4.dp)) {
-                            totals.byCategory.forEach { line ->
-                                CategoryBar(
-                                    line.category, line.total, line.count, (line.total / max).toFloat()
-                                ) { vm.navigate(Screen.Category(line.category)) }
-                            }
-                        }
+                    CategoryDonutCard(totals.byCategory, totals.spent) { cat ->
+                        vm.navigate(Screen.Category(cat))
                     }
                 }
             }
@@ -269,54 +268,83 @@ private fun MerchantBar(merchant: String, total: Double, count: Int, onClick: ()
 }
 
 @Composable
-private fun CategoryBar(
-    category: String,
-    total: Double,
-    count: Int,
-    fraction: Float,
-    onClick: () -> Unit
+private fun CategoryDonutCard(
+    lines: List<com.example.smsspend.model.CategoryLine>,
+    spent: Double,
+    onClick: (String) -> Unit
 ) {
-    Column(
-        Modifier
-            .fillMaxWidth()
-            .clickable(onClick = onClick)
-            .padding(horizontal = 14.dp, vertical = 10.dp)
-    ) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            CategoryDot(category)
-            Text(
-                category,
-                style = MaterialTheme.typography.bodyMedium,
-                fontWeight = FontWeight.Medium,
-                modifier = Modifier.weight(1f).padding(start = 10.dp)
-            )
-            Text(
-                Format.omr(total),
-                style = MaterialTheme.typography.bodyMedium,
-                fontWeight = FontWeight.SemiBold
-            )
+    val slices = lines.map { ChartSlice(it.category, it.total, categoryColor(it.category)) }
+    Card(Modifier.fillMaxWidth().padding(horizontal = 16.dp)) {
+        Column(Modifier.padding(16.dp)) {
+            Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+                DonutChart(
+                    slices = slices,
+                    modifier = Modifier.size(180.dp),
+                    thickness = 26.dp
+                ) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Text("Spent", style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text(Format.omr(spent), style = MaterialTheme.typography.titleLarge,
+                            fontWeight = FontWeight.Bold)
+                        Text("OMR", style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                }
+            }
+            Column(Modifier.padding(top = 12.dp)) {
+                lines.forEach { line ->
+                    val pct = if (spent > 0) (line.total / spent * 100).roundToInt() else 0
+                    Row(
+                        Modifier
+                            .fillMaxWidth()
+                            .clickable { onClick(line.category) }
+                            .padding(vertical = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        CategoryDot(line.category, 12)
+                        Text(line.category, style = MaterialTheme.typography.bodyMedium,
+                            fontWeight = FontWeight.Medium,
+                            modifier = Modifier.weight(1f).padding(start = 10.dp))
+                        Text("$pct%", style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.padding(end = 10.dp))
+                        Text(Format.omr(line.total), style = MaterialTheme.typography.bodyMedium,
+                            fontWeight = FontWeight.SemiBold)
+                    }
+                }
+            }
         }
-        Box(
-            Modifier
-                .padding(top = 6.dp, start = 22.dp)
-                .fillMaxWidth()
-                .height(6.dp)
-                .clip(RoundedCornerShape(3.dp))
-                .background(MaterialTheme.colorScheme.surfaceVariant)
-        ) {
-            Box(
-                Modifier
-                    .fillMaxWidth(fraction.coerceIn(0f, 1f))
-                    .height(6.dp)
-                    .clip(RoundedCornerShape(3.dp))
-                    .background(categoryColor(category))
+    }
+}
+
+@Composable
+private fun BalanceTrendCard(series: List<Float>) {
+    Card(Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, top = 12.dp)) {
+        Column(Modifier.padding(16.dp)) {
+            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                Text("Balance trend", style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
+                val delta = series.last() - series.first()
+                val up = delta >= 0
+                Text(
+                    (if (up) "▲ " else "▼ ") + Format.omr(abs(delta.toDouble())) + " OMR",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = if (up) categoryColor(Categorizer.INCOME) else MaterialTheme.colorScheme.error
+                )
+            }
+            Sparkline(
+                values = series,
+                color = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.fillMaxWidth().height(64.dp).padding(top = 10.dp)
             )
+            Row(Modifier.fillMaxWidth().padding(top = 4.dp)) {
+                Text("${series.size} readings", style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.weight(1f))
+                Text("Now ${Format.omr(series.last().toDouble())} OMR",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
         }
-        Text(
-            "$count item${if (count == 1) "" else "s"}",
-            style = MaterialTheme.typography.labelSmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.padding(start = 22.dp, top = 2.dp)
-        )
     }
 }

@@ -1,5 +1,6 @@
 package com.example.smsspend.data
 
+import androidx.room.ColumnInfo
 import androidx.room.Entity
 import androidx.room.PrimaryKey
 
@@ -18,17 +19,35 @@ data class TxnEntity(
     val merchantClean: String,
     val date: Long,
     val category: String,
+    // Added in schema v4; default keeps the migration ADD COLUMN in sync with Room's schema.
+    @ColumnInfo(defaultValue = "''") val subcategory: String = "",
     val body: String
 )
 
 /**
- * A learned per-merchant categorization. When the user re-categorizes a merchant we store
- * it here and bulk-update every matching [TxnEntity] — fixing one TALABAT fixes all.
+ * A learned per-merchant categorization (category + optional sub-category). When the user
+ * re-categorizes a merchant we store it here and bulk-update every matching [TxnEntity] —
+ * fixing or sub-tagging one TALABAT fixes all, retroactively.
  */
 @Entity(tableName = "merchant_rule")
 data class MerchantRuleEntity(
     @PrimaryKey val merchantClean: String,
-    val category: String
+    val category: String,
+    @ColumnInfo(defaultValue = "''") val subcategory: String = ""
+)
+
+/**
+ * A category the user can see/manage. Built-in ones are seeded on first run; users can add
+ * their own. A [parent] of "" means a top-level category (e.g. "Rent", "Utilities"); a set
+ * [parent] makes this a sub-category under it (e.g. "Electricity" under "Utilities").
+ */
+@Entity(tableName = "category_def")
+data class CategoryDef(
+    @PrimaryKey val name: String,
+    val parent: String = "",
+    val color: Long = 0L,
+    val sort: Int = 0,
+    val builtIn: Boolean = false
 )
 
 /**

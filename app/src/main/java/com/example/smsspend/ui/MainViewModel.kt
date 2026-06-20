@@ -3,6 +3,7 @@ package com.example.smsspend.ui
 import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.example.smsspend.data.CategoryDef
 import com.example.smsspend.data.Holding
 import com.example.smsspend.data.IpoApplication
 import com.example.smsspend.data.MerchantSum
@@ -63,11 +64,23 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     val importStatus = MutableStateFlow<String?>(null)
     val loading = MutableStateFlow(false)
 
+    init { viewModelScope.launch { repo.seedCategoriesIfEmpty() } }
+
+    /** All category definitions (built-in + custom), top-level and sub. */
+    val categories: StateFlow<List<CategoryDef>> =
+        repo.categories().stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
     /** Current balance: the user's manual figure if set, else the latest scraped from SMS. */
     val balance: StateFlow<Double> =
         combine(repo.latestBalance(), manualBalance) { snap, manual ->
             if (manual > 0.0) manual else snap?.balance ?: 0.0
         }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0.0)
+
+    /** Balance readings over time (oldest first) for the trend sparkline. */
+    val balanceSeries: StateFlow<List<Float>> =
+        repo.balanceSeries()
+            .map { list -> list.map { it.balance.toFloat() } }
+            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     /** Auto-detected salary deposit dates (pinned amount wins) used as pay-cycle boundaries. */
     val salaryDates: StateFlow<List<Long>> =
@@ -121,6 +134,20 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         repo.txnsForCategory(start, end, category)
 
     fun txnsForMerchant(merchant: String) = repo.txnsForMerchant(merchant)
+
+    fun subcategoriesInPeriod(start: Long, end: Long, category: String) =
+        repo.subcategoriesInPeriod(start, end, category)
+
+    /** Sub-categories defined under [parent], for the picker. */
+    fun subcategoriesOf(parent: String): List<String> =
+        categories.value.filter { it.parent == parent }.map { it.name }
+
+    fun addCategory(name: String, parent: String) {
+        viewModelScope.launch { repo.addCategory(name, parent) }
+    }
+    fun deleteCategory(name: String) {
+        viewModelScope.launch { repo.deleteCategory(name) }
+    }
 
     // ---- portfolio ----
     val holdings: StateFlow<List<Holding>> =
@@ -239,8 +266,8 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
-    fun setMerchantCategory(merchant: String, category: String) {
-        viewModelScope.launch { repo.setMerchantCategory(merchant, category) }
+    fun setMerchantCategory(merchant: String, category: String, subcategory: String = "") {
+        viewModelScope.launch { repo.setMerchantCategory(merchant, category, subcategory) }
     }
 
     /** Builds the full JSON data export and hands it back on the main thread. */
@@ -279,8 +306,12 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         val ins = insights.value
         val bal = balance.value
         val label = period.value.label
-        val breakdown = t.byCategory.take(4)
-            .joinToString("\n") { "• ${it.category}  ${fmt(it.total)}" }
+        val breakdown = t.byCategory.take(5)
+            .joinToString("\n") { line ->
+                val pct = if (t.spent > 0) (line.total / t.spent * 100).toInt() else 0
+                val bars = "█".repeat((pct + 5) / 10)
+                "${line.category}  $pct%  $bars"
+            }
             .ifBlank { "No spending yet" }
 
         val trend = buildString {

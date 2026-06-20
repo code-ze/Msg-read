@@ -43,6 +43,8 @@ fun MerchantDetailScreen(vm: MainViewModel, merchant: String) {
     val count = txns.size
     val avg = if (count > 0) total / count else 0.0
     val category = txns.firstOrNull()?.category ?: ""
+    val subcategory = txns.firstOrNull()?.subcategory ?: ""
+    val categoryLabel = if (subcategory.isNotBlank()) "$category › $subcategory" else category
     val isIncome = txns.firstOrNull()
         ?.let { runCatching { TxnType.valueOf(it.type) }.getOrNull() }
         ?.isIncome ?: false
@@ -53,9 +55,9 @@ fun MerchantDetailScreen(vm: MainViewModel, merchant: String) {
         Card(Modifier.fillMaxWidth().padding(16.dp)) {
             Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    CategoryDot(category, 16)
+                    CategoryDot(if (subcategory.isNotBlank()) subcategory else category, 16)
                     Text(
-                        category,
+                        categoryLabel,
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.Bold,
                         modifier = Modifier.weight(1f).padding(start = 10.dp)
@@ -89,12 +91,17 @@ fun MerchantDetailScreen(vm: MainViewModel, merchant: String) {
     }
 
     if (picking) {
-        RecategorizeDialog(
+        val categories by vm.categories.collectAsState()
+        RecategorizeSheet(
             merchant = merchant,
-            onPick = { cat ->
-                vm.setMerchantCategory(merchant, cat)
+            categories = categories,
+            initialCategory = txns.firstOrNull()?.category ?: "",
+            initialSubcategory = txns.firstOrNull()?.subcategory ?: "",
+            onApply = { cat, sub ->
+                vm.setMerchantCategory(merchant, cat, sub)
                 picking = false
             },
+            onAddCategory = { name, parent -> vm.addCategory(name, parent) },
             onDismiss = { picking = false }
         )
     }

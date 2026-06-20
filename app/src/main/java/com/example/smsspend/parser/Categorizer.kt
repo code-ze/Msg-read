@@ -18,12 +18,42 @@ object Categorizer {
     /** Categories that represent money coming in (kept out of spending totals). */
     val incomeCategories = setOf(INCOME, DIVIDENDS)
 
-    /** Full ordered list shown in the re-categorize picker. */
+    /** Full ordered list shown in the re-categorize picker (built-in, top-level). */
     val allCategories = listOf(
         "Food Delivery", "Cafes & Tea", "Restaurants", "Groceries",
         "Fuel & Transport", "Pharmacy & Health", "Telecom", "Utilities",
-        "Subscriptions", "Online Shopping", "Charity", TRANSFERS,
+        "Rent", "Subscriptions", "Online Shopping", "Charity", TRANSFERS,
         INVESTMENTS, DIVIDENDS, INCOME, OTHER
+    )
+
+    /**
+     * Built-in sub-categories, seeded so common splits exist out of the box. Users can add
+     * their own to any category. Order is the display order.
+     */
+    val builtInSubcategories: Map<String, List<String>> = linkedMapOf(
+        "Utilities" to listOf("Electricity", "Water", "Gas"),
+        "Fuel & Transport" to listOf("Fuel", "Taxi", "Parking"),
+        "Telecom" to listOf("Mobile", "Internet"),
+        "Groceries" to listOf("Supermarket", "Bakery"),
+        "Restaurants" to listOf("Fast Food", "Dine-in")
+    )
+
+    /** Keyword → sub-category, scoped per parent category, for automatic sub-tagging. */
+    private val subKeywordRules: Map<String, List<Pair<String, List<String>>>> = mapOf(
+        "Utilities" to listOf(
+            "Electricity" to listOf("NAMA", "MAJAN", "MAZOON", "MUSCAT ELECT", "ELECTRIC", "RURAL AREAS", "TANWEER"),
+            "Water" to listOf("DIAM", "WATER", "HAYA", "MIYAH"),
+            "Gas" to listOf("GAS", "GHAZ")
+        ),
+        "Fuel & Transport" to listOf(
+            "Fuel" to listOf("OMAN OIL", "SHELL", "PETROL", "FUEL", "AL MAHA"),
+            "Taxi" to listOf("OTAXI", "OOREDOO TAXI", "TAXI", "MWASALAT"),
+            "Parking" to listOf("PARKING", "MAWQIF")
+        ),
+        "Telecom" to listOf(
+            "Mobile" to listOf("RECHARGE", "PREPAID", "MOBILE"),
+            "Internet" to listOf("INTERNET", "FIBER", "BROADBAND", "WIFI")
+        )
     )
 
     private val keywordRules: List<Pair<String, List<String>>> = listOf(
@@ -91,5 +121,13 @@ object Categorizer {
         val m = merchant.uppercase()
         for ((cat, keys) in keywordRules) if (keys.any { m.contains(it) }) return cat
         return null
+    }
+
+    /** Best-effort default sub-category from the merchant within a known category ("" = none). */
+    fun defaultSubcategory(category: String, merchantClean: String): String {
+        val rules = subKeywordRules[category] ?: return ""
+        val m = merchantClean.uppercase()
+        for ((sub, keys) in rules) if (keys.any { m.contains(it) }) return sub
+        return ""
     }
 }

@@ -13,9 +13,10 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         MerchantRuleEntity::class,
         Holding::class,
         IpoApplication::class,
-        BalanceSnapshot::class
+        BalanceSnapshot::class,
+        CategoryDef::class
     ],
-    version = 3,
+    version = 4,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -24,6 +25,7 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun holdingDao(): HoldingDao
     abstract fun ipoApplicationDao(): IpoApplicationDao
     abstract fun balanceDao(): BalanceDao
+    abstract fun categoryDao(): CategoryDao
 
     companion object {
         @Volatile private var INSTANCE: AppDatabase? = null
@@ -42,6 +44,23 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        /** Adds sub-categories (column on txn + rules) and the category-definition table. */
+        private val MIGRATION_3_4 = object : Migration(3, 4) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                // ADD COLUMN needs a default to backfill existing rows; the entity declares the
+                // same default via @ColumnInfo so Room's schema validation matches.
+                db.execSQL("ALTER TABLE `txn` ADD COLUMN `subcategory` TEXT NOT NULL DEFAULT ''")
+                db.execSQL("ALTER TABLE `merchant_rule` ADD COLUMN `subcategory` TEXT NOT NULL DEFAULT ''")
+                // New table: no SQL defaults, to match Room's generated schema for the entity.
+                db.execSQL(
+                    "CREATE TABLE IF NOT EXISTS `category_def` " +
+                        "(`name` TEXT NOT NULL, `parent` TEXT NOT NULL, " +
+                        "`color` INTEGER NOT NULL, `sort` INTEGER NOT NULL, " +
+                        "`builtIn` INTEGER NOT NULL, PRIMARY KEY(`name`))"
+                )
+            }
+        }
+
         fun get(context: Context): AppDatabase =
             INSTANCE ?: synchronized(this) {
                 INSTANCE ?: Room.databaseBuilder(
@@ -49,7 +68,7 @@ abstract class AppDatabase : RoomDatabase() {
                     AppDatabase::class.java,
                     "smsspend.db"
                 )
-                    .addMigrations(MIGRATION_2_3)
+                    .addMigrations(MIGRATION_2_3, MIGRATION_3_4)
                     .fallbackToDestructiveMigration()
                     .build()
                     .also { INSTANCE = it }

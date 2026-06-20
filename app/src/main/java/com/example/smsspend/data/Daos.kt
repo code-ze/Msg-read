@@ -11,6 +11,9 @@ import kotlinx.coroutines.flow.Flow
 /** Aggregated spend for one category within a period. */
 data class CategorySum(val category: String, val total: Double, val count: Int)
 
+/** Aggregated spend for one sub-category within a period. */
+data class SubcategorySum(val subcategory: String, val total: Double, val count: Int)
+
 /** Aggregated spend for one merchant within a period. */
 data class MerchantSum(val merchantClean: String, val total: Double, val count: Int)
 
@@ -29,8 +32,16 @@ interface TxnDao {
     @Query("SELECT * FROM txn WHERE merchantClean = :merchant ORDER BY date DESC")
     fun forMerchant(merchant: String): Flow<List<TxnEntity>>
 
-    @Query("UPDATE txn SET category = :category WHERE merchantClean = :merchant")
-    suspend fun reassignMerchant(merchant: String, category: String)
+    @Query("UPDATE txn SET category = :category, subcategory = :subcategory WHERE merchantClean = :merchant")
+    suspend fun reassignMerchant(merchant: String, category: String, subcategory: String)
+
+    /** Sub-category split within one category for a period (e.g. Utilities → Electricity/Water). */
+    @Query(
+        "SELECT subcategory, SUM(amount) AS total, COUNT(*) AS count FROM txn " +
+            "WHERE date >= :start AND date < :end AND category = :category " +
+            "GROUP BY subcategory ORDER BY total DESC"
+    )
+    fun subcategoriesInPeriod(start: Long, end: Long, category: String): Flow<List<SubcategorySum>>
 
     @Query("SELECT merchantClean, SUM(amount) AS total, COUNT(*) AS count FROM txn WHERE type = 'DIVIDEND' GROUP BY merchantClean ORDER BY total DESC")
     fun dividendsByCompany(): Flow<List<MerchantSum>>
@@ -72,6 +83,10 @@ interface BalanceDao {
     /** Most recent balance reading (the closest thing to "money in the bank right now"). */
     @Query("SELECT * FROM balance_snapshot ORDER BY date DESC LIMIT 1")
     fun latest(): Flow<BalanceSnapshot?>
+
+    /** Whole balance series, oldest first, for the trend sparkline. */
+    @Query("SELECT * FROM balance_snapshot ORDER BY date ASC")
+    fun series(): Flow<List<BalanceSnapshot>>
 
     @Query("SELECT * FROM balance_snapshot ORDER BY date DESC")
     suspend fun allForExport(): List<BalanceSnapshot>
@@ -127,7 +142,25 @@ interface MerchantRuleDao {
 
     @Query("SELECT * FROM merchant_rule")
     suspend fun all(): List<MerchantRuleEntity>
+}
 
-    @Query("SELECT category FROM merchant_rule WHERE merchantClean = :merchant LIMIT 1")
-    suspend fun categoryFor(merchant: String): String?
+@Dao
+interface CategoryDao {
+    @Insert(onConflict = OnConflictStrategy.IGNORE)
+    suspend fun insertAll(items: List<CategoryDef>)
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun upsert(item: CategoryDef)
+
+    @Query("SELECT * FROM category_def ORDER BY sort, name COLLATE NOCASE")
+    fun all(): Flow<List<CategoryDef>>
+
+    @Query("SELECT * FROM category_def ORDER BY sort, name COLLATE NOCASE")
+    suspend fun allOnce(): List<CategoryDef>
+
+    @Query("SELECT COUNT(*) FROM category_def")
+    suspend fun count(): Int
+
+    @Query("DELETE FROM category_def WHERE name = :name AND builtIn = 0")
+    suspend fun deleteCustom(name: String)
 }

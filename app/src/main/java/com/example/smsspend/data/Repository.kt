@@ -17,6 +17,7 @@ class Repository(private val appContext: Context) {
     private val holdingDao = db.holdingDao()
     private val ipoAppDao = db.ipoApplicationDao()
     private val balanceDao = db.balanceDao()
+    private val categoryDao = db.categoryDao()
 
     fun txnsInPeriod(start: Long, end: Long): Flow<List<TxnEntity>> = txnDao.inPeriod(start, end)
 
@@ -28,8 +29,39 @@ class Repository(private val appContext: Context) {
     fun merchantsInPeriod(start: Long, end: Long): Flow<List<MerchantSum>> =
         txnDao.merchantsInPeriod(start, end)
 
+    fun subcategoriesInPeriod(start: Long, end: Long, category: String): Flow<List<SubcategorySum>> =
+        txnDao.subcategoriesInPeriod(start, end, category)
+
+    // ---- categories ----
+    fun categories(): Flow<List<CategoryDef>> = categoryDao.all()
+
+    /** Seeds the built-in categories + sub-categories once, so users have sensible defaults. */
+    suspend fun seedCategoriesIfEmpty() = withContext(Dispatchers.IO) {
+        if (categoryDao.count() > 0) return@withContext
+        val defs = ArrayList<CategoryDef>()
+        Categorizer.allCategories.forEachIndexed { i, name ->
+            defs.add(CategoryDef(name = name, parent = "", sort = i, builtIn = true))
+        }
+        Categorizer.builtInSubcategories.forEach { (parent, subs) ->
+            subs.forEachIndexed { i, sub ->
+                defs.add(CategoryDef(name = sub, parent = parent, sort = i, builtIn = true))
+            }
+        }
+        categoryDao.insertAll(defs)
+    }
+
+    suspend fun addCategory(name: String, parent: String) = withContext(Dispatchers.IO) {
+        val n = name.trim()
+        if (n.isNotEmpty()) categoryDao.upsert(CategoryDef(name = n, parent = parent.trim(), sort = 999))
+    }
+
+    suspend fun deleteCategory(name: String) = withContext(Dispatchers.IO) {
+        categoryDao.deleteCustom(name)
+    }
+
     // ---- balance ----
     fun latestBalance(): Flow<BalanceSnapshot?> = balanceDao.latest()
+    fun balanceSeries(): Flow<List<BalanceSnapshot>> = balanceDao.series()
 
     // ---- portfolio / investments ----
     fun holdings(): Flow<List<Holding>> = holdingDao.all()
@@ -46,12 +78,15 @@ class Repository(private val appContext: Context) {
      */
     suspend fun importFromSms(): Int = withContext(Dispatchers.IO) {
         val scan: SmsScan = SmsReader.read(appContext)
-        val rules = ruleDao.all().associate { it.merchantClean to it.category }
+        seedCategoriesIfEmpty()
+        val rules = ruleDao.all().associateBy { it.merchantClean }
         val before = txnDao.count()
 
         val entities = scan.txns.map { p: ParsedTxn ->
             val clean = Categorizer.cleanMerchant(p.merchantRaw)
-            val category = rules[clean] ?: Categorizer.defaultCategory(p.type, clean)
+            val rule = rules[clean]
+            val category = rule?.category ?: Categorizer.defaultCategory(p.type, clean)
+            val subcategory = rule?.subcategory ?: Categorizer.defaultSubcategory(category, clean)
             TxnEntity(
                 key = p.key,
                 type = p.type.name,
@@ -60,6 +95,7 @@ class Repository(private val appContext: Context) {
                 merchantClean = clean,
                 date = p.date,
                 category = category,
+                subcategory = subcategory,
                 body = p.body
             )
         }
@@ -91,12 +127,17 @@ class Repository(private val appContext: Context) {
     }
 
     /**
-     * Learns a category for a merchant and retroactively reassigns every transaction from
-     * that merchant — the "automatically re-categorize" behavior.
+     * Learns a category + sub-category for a merchant and retroactively reassigns every
+     * transaction from that merchant — so tagging one TALABAT (or splitting a NAMA bill into
+     * "Electricity") applies to all its past spends automatically.
      */
-    suspend fun setMerchantCategory(merchant: String, category: String) = withContext(Dispatchers.IO) {
-        ruleDao.upsert(MerchantRuleEntity(merchant, category))
-        txnDao.reassignMerchant(merchant, category)
+    suspend fun setMerchantCategory(
+        merchant: String,
+        category: String,
+        subcategory: String = ""
+    ) = withContext(Dispatchers.IO) {
+        ruleDao.upsert(MerchantRuleEntity(merchant, category, subcategory))
+        txnDao.reassignMerchant(merchant, category, subcategory)
     }
 
     // ---- holdings CRUD ----
@@ -141,7 +182,7 @@ class Repository(private val appContext: Context) {
         val root = JSONObject()
         root.put("app", "SMS Spend")
         root.put("exportedAt", System.currentTimeMillis())
-        root.put("schemaVersion", 3)
+        root.put("schemaVersion", 4)
 
         root.put("settings", JSONObject().apply {
             put("anchorDay", Prefs.getAnchorDay(appContext))
@@ -160,6 +201,7 @@ class Repository(private val appContext: Context) {
                 put("amount", t.amount)
                 put("merchant", t.merchantClean)
                 put("category", t.category)
+                put("subcategory", t.subcategory)
             })
         })
 
@@ -167,6 +209,15 @@ class Repository(private val appContext: Context) {
             for (r in ruleDao.all()) put(JSONObject().apply {
                 put("merchant", r.merchantClean)
                 put("category", r.category)
+                put("subcategory", r.subcategory)
+            })
+        })
+
+        root.put("categories", JSONArray().apply {
+            for (c in categoryDao.allOnce()) put(JSONObject().apply {
+                put("name", c.name)
+                put("parent", c.parent)
+                put("builtIn", c.builtIn)
             })
         })
 

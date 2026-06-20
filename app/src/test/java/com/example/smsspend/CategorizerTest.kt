@@ -30,4 +30,15 @@ class CategorizerTest {
     @Test fun unknownFallsBackToOther() {
         assertEquals(Categorizer.OTHER, Categorizer.defaultCategory(TxnType.DEBIT, "Some Random Shop"))
     }
+
+    @Test fun defaultSubcategorySplitsUtilities() {
+        assertEquals("Electricity", Categorizer.defaultSubcategory("Utilities", "NAMA Electricity"))
+        assertEquals("Water", Categorizer.defaultSubcategory("Utilities", "DIAM"))
+    }
+
+    @Test fun defaultSubcategoryEmptyWhenUnknownOrNoRules() {
+        assertEquals("", Categorizer.defaultSubcategory("Utilities", "Mystery Co"))
+        assertEquals("", Categorizer.defaultSubcategory("Groceries", "Lulu")) // no keyword rule for it
+        assertEquals("", Categorizer.defaultSubcategory("Rent", "Landlord"))
+    }
 }
