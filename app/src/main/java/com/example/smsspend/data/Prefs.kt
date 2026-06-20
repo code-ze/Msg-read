@@ -14,14 +14,6 @@ object Prefs {
 
     fun sp(c: Context) = c.getSharedPreferences(FILE, Context.MODE_PRIVATE)
 
-    var Context.anchorDay: Int
-        get() = sp(this).getInt(KEY_ANCHOR, 20)
-        set(v) { sp(this).edit().putInt(KEY_ANCHOR, v.coerceIn(1, 31)).apply() }
-
-    var Context.investAsSpending: Boolean
-        get() = sp(this).getBoolean(KEY_INVEST_AS_SPEND, false)
-        set(v) { sp(this).edit().putBoolean(KEY_INVEST_AS_SPEND, v).apply() }
-
     fun getAnchorDay(c: Context): Int = sp(c).getInt(KEY_ANCHOR, 20)
     fun setAnchorDay(c: Context, v: Int) = sp(c).edit().putInt(KEY_ANCHOR, v.coerceIn(1, 31)).apply()
     fun getInvestAsSpending(c: Context): Boolean = sp(c).getBoolean(KEY_INVEST_AS_SPEND, false)
