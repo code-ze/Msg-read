@@ -51,6 +51,7 @@ fun PeriodBar(
     period: Period,
     canStep: Boolean,
     anchorDay: Int,
+    salaryDetected: Boolean,
     onStep: (Int) -> Unit,
     onSelect: (PeriodReq) -> Unit,
     modifier: Modifier = Modifier
@@ -99,15 +100,18 @@ fun PeriodBar(
             ) {
                 Text("Choose period", style = MaterialTheme.typography.titleLarge)
                 Text(
-                    "Pay cycle starts on day $anchorDay (set in Settings).",
+                    if (salaryDetected)
+                        "Pay cycle follows your detected salary deposits (the real landing date each month)."
+                    else
+                        "No salary detected yet — pay cycle uses day $anchorDay as a fallback (set in Settings).",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
                 fun pick(req: PeriodReq) { onSelect(req); sheetOpen = false }
 
                 PresetRow(
-                    "This cycle" to { pick(PeriodReq.Cycle(0)) },
-                    "Last cycle" to { pick(PeriodReq.Cycle(-1)) }
+                    "This pay cycle" to { pick(PeriodReq.Salary(0)) },
+                    "Last pay cycle" to { pick(PeriodReq.Salary(-1)) }
                 )
                 PresetRow(
                     "This month" to { pick(PeriodReq.Month(0)) },

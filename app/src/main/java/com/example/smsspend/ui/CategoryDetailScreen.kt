@@ -32,6 +32,7 @@ fun CategoryDetailScreen(vm: MainViewModel, category: String) {
             period = period,
             canStep = vm.canStep,
             anchorDay = vm.anchorDay.value,
+            salaryDetected = vm.salaryDates.value.isNotEmpty(),
             onStep = { vm.stepPeriod(it) },
             onSelect = { vm.setPeriod(it) }
         )

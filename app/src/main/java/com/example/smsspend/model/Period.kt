@@ -5,7 +5,7 @@ import java.util.Calendar
 import java.util.Locale
 import java.util.TimeZone
 
-enum class PeriodType { PAY_CYCLE, MONTH, YEAR, CUSTOM }
+enum class PeriodType { SALARY, PAY_CYCLE, MONTH, YEAR, CUSTOM }
 
 /**
  * A half-open time window [start, endExclusive). Pure data so it can be unit-tested.
@@ -67,6 +67,31 @@ object Periods {
 
         return Period(PeriodType.PAY_CYCLE, start.timeInMillis, end.timeInMillis, rangeLabel(start, end))
     }
+
+    /**
+     * Cycle bounded by detected salary deposits. [boundaries] are actual salary dates; each
+     * cycle runs from one salary to the next, so the boundary follows the real landing day.
+     * [offset] steps through history (0 = current open cycle since the last salary). Returns
+     * null if there aren't enough boundaries (caller should fall back to [payCycle]).
+     */
+    fun salaryCycle(boundaries: List<Long>, offset: Int, now: Long): Period? {
+        if (boundaries.isEmpty()) return null
+        val bs = boundaries.sorted()
+        val curIdx = bs.indexOfLast { it <= now }.let { if (it < 0) 0 else it }
+        val idx = (curIdx + offset).coerceIn(0, bs.size - 1)
+        val start = bs[idx]
+        val open = idx == bs.size - 1
+        val end = if (!open) bs[idx + 1] else maxOf(now, start) + DAY_MS
+        val startCal = cal(start)
+        val label = if (open) {
+            "Since " + SimpleDateFormat("MMM d", Locale.getDefault()).format(startCal.time)
+        } else {
+            rangeLabel(startCal, cal(end))
+        }
+        return Period(PeriodType.SALARY, start, end, label)
+    }
+
+    private const val DAY_MS = 24L * 60 * 60 * 1000
 
     /** Calendar month containing [now], shifted by [offset] months. */
     fun month(offset: Int, now: Long): Period {

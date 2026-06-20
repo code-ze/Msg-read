@@ -11,6 +11,7 @@ import com.example.smsspend.data.Repository
 import com.example.smsspend.data.TxnEntity
 import com.example.smsspend.model.Period
 import com.example.smsspend.model.Periods
+import com.example.smsspend.model.SalaryDetector
 import com.example.smsspend.model.Totals
 import com.example.smsspend.widget.WidgetUpdater
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -19,11 +20,14 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
 /** A request for a period; resolved to a concrete [Period] using the current anchor day. */
 sealed interface PeriodReq {
+    /** Pay cycle bounded by auto-detected salary deposits (falls back to fixed anchor). */
+    data class Salary(val offset: Int) : PeriodReq
     data class Cycle(val offset: Int) : PeriodReq
     data class Month(val offset: Int) : PeriodReq
     data class Year(val offset: Int) : PeriodReq
@@ -50,14 +54,23 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     val investAsSpending = MutableStateFlow(Prefs.getInvestAsSpending(app))
     val liveMsxPrices = MutableStateFlow(Prefs.getLiveMsxPrices(app))
 
-    val periodReq = MutableStateFlow<PeriodReq>(PeriodReq.Cycle(0))
+    val periodReq = MutableStateFlow<PeriodReq>(PeriodReq.Salary(0))
 
     val importStatus = MutableStateFlow<String?>(null)
     val loading = MutableStateFlow(false)
 
+    /** Auto-detected salary deposit dates used as pay-cycle boundaries. */
+    val salaryDates: StateFlow<List<Long>> =
+        repo.incomeTxns()
+            .map { list -> SalaryDetector.detect(list.map { SalaryDetector.Income(it.amount, it.date) }) }
+            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
     val period: StateFlow<Period> =
-        combine(periodReq, anchorDay) { req, anchor -> resolve(req, anchor) }
-            .stateIn(viewModelScope, SharingStarted.Eagerly, resolve(periodReq.value, anchorDay.value))
+        combine(periodReq, anchorDay, salaryDates) { req, anchor, sal -> resolve(req, anchor, sal) }
+            .stateIn(
+                viewModelScope, SharingStarted.Eagerly,
+                resolve(periodReq.value, anchorDay.value, salaryDates.value)
+            )
 
     private val periodTxns: StateFlow<List<TxnEntity>> =
         period.flatMapLatest { p -> repo.txnsInPeriod(p.start, p.endExclusive) }
@@ -114,9 +127,12 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         liveMsxPrices.value = v
     }
 
-    private fun resolve(req: PeriodReq, anchor: Int): Period {
+    private fun resolve(req: PeriodReq, anchor: Int, salaryDates: List<Long>): Period {
         val now = System.currentTimeMillis()
         return when (req) {
+            is PeriodReq.Salary ->
+                Periods.salaryCycle(salaryDates, req.offset, now)
+                    ?: Periods.payCycle(anchor, req.offset, now)
             is PeriodReq.Cycle -> Periods.payCycle(anchor, req.offset, now)
             is PeriodReq.Month -> Periods.month(req.offset, now)
             is PeriodReq.Year -> Periods.year(req.offset, now)
@@ -137,6 +153,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     fun setPeriod(req: PeriodReq) { periodReq.value = req }
     fun stepPeriod(delta: Int) {
         periodReq.value = when (val r = periodReq.value) {
+            is PeriodReq.Salary -> PeriodReq.Salary(r.offset + delta)
             is PeriodReq.Cycle -> PeriodReq.Cycle(r.offset + delta)
             is PeriodReq.Month -> PeriodReq.Month(r.offset + delta)
             is PeriodReq.Year -> PeriodReq.Year(r.offset + delta)

@@ -10,9 +10,11 @@ connections.
 
 - **Dashboard** — Spent / Income / Net / Invested for the selected period, a
   tap-through category breakdown, and the full transaction list.
-- **Flexible periods** — default is your **pay cycle** (e.g. the 20th → the 19th).
-  Step backward/forward with ◀ ▶, or pick *This/Last cycle*, *This/Last month*,
-  *This/Last year*, or any **custom date range**. Set your salary day in Settings.
+- **Flexible periods** — default is your **pay cycle**, auto-detected from your actual
+  salary deposits, so each cycle starts on the real landing date (e.g. the 19th one month,
+  the 23rd the next). Step backward/forward with ◀ ▶, or pick *This/Last pay cycle*,
+  *This/Last month*, *This/Last year*, or any **custom date range**. A fixed fallback day is
+  used until enough salary deposits are detected (set it in Settings).
 - **Smart categorization that learns** — re-categorize a merchant once and **every**
   transaction from that merchant updates (fixing one TALABAT fixes them all). Merchant
   names are cleaned up automatically.

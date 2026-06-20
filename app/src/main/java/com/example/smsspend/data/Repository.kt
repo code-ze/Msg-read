@@ -27,6 +27,7 @@ class Repository(private val appContext: Context) {
     fun dividendsByCompany(): Flow<List<MerchantSum>> = txnDao.dividendsByCompany()
     fun ipoTxns(): Flow<List<TxnEntity>> = txnDao.ipoTxns()
     fun ipoApplications(): Flow<List<IpoApplication>> = ipoAppDao.all()
+    fun incomeTxns(): Flow<List<TxnEntity>> = txnDao.incomeTxns()
 
     /**
      * Reads the SMS inbox, cleans + categorizes each transaction (applying learned

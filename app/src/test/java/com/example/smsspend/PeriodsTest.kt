@@ -62,4 +62,28 @@ class PeriodsTest {
         assertTrue(p.contains(millis(2025, Calendar.JUNE, 20)))
         assertTrue(!p.contains(millis(2025, Calendar.JUNE, 21)))
     }
+
+    @Test fun salaryCycleUsesActualBoundaries() {
+        val boundaries = listOf(
+            millis(2026, Calendar.JANUARY, 20),
+            millis(2026, Calendar.FEBRUARY, 19),
+            millis(2026, Calendar.MARCH, 23)
+        )
+        val now = millis(2026, Calendar.MARCH, 25)
+
+        val current = Periods.salaryCycle(boundaries, 0, now)!!
+        assertEquals(23, field(current.start, Calendar.DAY_OF_MONTH))
+        assertTrue(current.contains(millis(2026, Calendar.MARCH, 24)))
+        assertTrue(!current.contains(millis(2026, Calendar.FEBRUARY, 28)))
+
+        val prev = Periods.salaryCycle(boundaries, -1, now)!!
+        assertEquals(19, field(prev.start, Calendar.DAY_OF_MONTH))
+        assertEquals(Calendar.FEBRUARY, field(prev.start, Calendar.MONTH))
+        assertTrue(prev.contains(millis(2026, Calendar.MARCH, 1)))
+        assertTrue(!prev.contains(millis(2026, Calendar.MARCH, 23)))
+    }
+
+    @Test fun salaryCycleNullWhenNoBoundaries() {
+        assertEquals(null, Periods.salaryCycle(emptyList(), 0, millis(2026, Calendar.MARCH, 25)))
+    }
 }

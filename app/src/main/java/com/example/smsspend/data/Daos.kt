@@ -38,6 +38,9 @@ interface TxnDao {
     @Query("SELECT * FROM txn WHERE type = 'IPO' ORDER BY date DESC")
     fun ipoTxns(): Flow<List<TxnEntity>>
 
+    @Query("SELECT * FROM txn WHERE type IN ('DEPOSIT', 'WALLET_IN') ORDER BY date")
+    fun incomeTxns(): Flow<List<TxnEntity>>
+
     @Query("SELECT COUNT(*) FROM txn")
     suspend fun count(): Int
 

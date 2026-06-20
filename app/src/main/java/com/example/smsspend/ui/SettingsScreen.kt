@@ -36,9 +36,10 @@ fun SettingsScreen(vm: MainViewModel) {
     ) {
         Card(Modifier.fillMaxWidth()) {
             Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text("Pay-cycle start day", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                Text("Pay-cycle fallback day", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
                 Text(
-                    "Your salary lands on day $anchor, so each cycle runs from day $anchor to the day before the next.",
+                    "Pay cycles normally follow your auto-detected salary deposits. This fixed day is " +
+                        "only used as a fallback until enough salary deposits are detected.",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )

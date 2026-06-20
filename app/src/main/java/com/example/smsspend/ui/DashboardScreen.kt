@@ -34,12 +34,14 @@ fun DashboardScreen(vm: MainViewModel) {
     val recent by vm.recentTxns.collectAsStateWithLifecycle()
     val anchor by vm.anchorDay.collectAsStateWithLifecycle()
     val investAsSpend by vm.investAsSpending.collectAsStateWithLifecycle()
+    val salaryDates by vm.salaryDates.collectAsStateWithLifecycle()
 
     Column(Modifier.fillMaxSize()) {
         PeriodBar(
             period = period,
             canStep = vm.canStep,
             anchorDay = anchor,
+            salaryDetected = salaryDates.isNotEmpty(),
             onStep = { vm.stepPeriod(it) },
             onSelect = { vm.setPeriod(it) }
         )
