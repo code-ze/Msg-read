@@ -28,6 +28,37 @@ object Fire {
     fun monthlyIncome(nestEgg: Double, annualReturnPct: Double): Double =
         nestEgg * (annualReturnPct / 100.0) / 12.0
 
+    /** Future value of [current] plus [monthly] contributions after [months], compounded monthly. */
+    fun futureValue(current: Double, monthly: Double, annualReturnPct: Double, months: Int): Double {
+        if (months <= 0) return current
+        val r = annualReturnPct / 100.0 / 12.0
+        if (r <= 0.0) return current + monthly * months
+        val growth = Math.pow(1 + r, months.toDouble())
+        return current * growth + monthly * ((growth - 1) / r)
+    }
+
+    /**
+     * Monthly contribution needed to grow [current] to [target] within [months] at
+     * [annualReturnPct]. 0 if [current] already gets there on its own; ∞ if months <= 0.
+     */
+    fun requiredMonthlyContribution(
+        current: Double,
+        target: Double,
+        annualReturnPct: Double,
+        months: Int
+    ): Double {
+        if (months <= 0) return Double.POSITIVE_INFINITY
+        val r = annualReturnPct / 100.0 / 12.0
+        if (r <= 0.0) {
+            val need = target - current
+            return if (need <= 0) 0.0 else need / months
+        }
+        val growth = Math.pow(1 + r, months.toDouble())
+        val fvCurrent = current * growth
+        if (fvCurrent >= target) return 0.0
+        return (target - fvCurrent) * r / (growth - 1)
+    }
+
     /**
      * Months until [current] grows to [target] with [monthly] added each month and monthly
      * compounding at [annualReturnPct]. 0 if already there, -1 if it never gets there.

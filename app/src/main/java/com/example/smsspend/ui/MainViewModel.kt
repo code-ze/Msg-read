@@ -179,6 +179,14 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         repo.categorySpendSince(baselineStart)
             .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
+    /** Rough monthly surplus you could invest: ~90-day income minus spend, per month. */
+    val monthlyNetEstimate: StateFlow<Double> =
+        combine(repo.incomeTxns(), baselineSpend) { inc, spend ->
+            val income90 = inc.filter { it.date >= baselineStart }.sumOf { it.amount }
+            val spend90 = spend.sumOf { it.total }
+            ((income90 - spend90) / 3.0).coerceAtLeast(0.0)
+        }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0.0)
+
     /** Actionable savings/investing recommendations for the Insights & Action tab. */
     val recommendations: StateFlow<List<Recommendations.Rec>> =
         combine(totals, insights, currentBalance, baselineSpend, salaryDates) { t, ins, bal, baseline, sal ->

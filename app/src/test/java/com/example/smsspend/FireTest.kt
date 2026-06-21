@@ -34,4 +34,25 @@ class FireTest {
         val noGrowth = Fire.monthsToReach(0.0, 100.0, 20000.0, 0.0)
         assertTrue(withGrowth in 1 until noGrowth)
     }
+
+    @Test fun requiredContributionZeroReturnIsLinear() {
+        // need 12,000 in 120 months, no growth -> 100/mo
+        assertEquals(100.0, Fire.requiredMonthlyContribution(0.0, 12000.0, 0.0, 120), 0.01)
+    }
+
+    @Test fun requiredContributionLowerWithGrowth() {
+        val withGrowth = Fire.requiredMonthlyContribution(0.0, 100000.0, 8.0, 120)
+        val noGrowth = Fire.requiredMonthlyContribution(0.0, 100000.0, 0.0, 120)
+        assertTrue(withGrowth < noGrowth)
+        assertTrue(withGrowth > 0.0)
+    }
+
+    @Test fun requiredContributionZeroWhenCurrentAlreadyGrowsThere() {
+        // 100k at 8% for 10y already exceeds 50k target -> no contribution needed
+        assertEquals(0.0, Fire.requiredMonthlyContribution(100000.0, 50000.0, 8.0, 120), 0.0001)
+    }
+
+    @Test fun futureValueLinearNoReturn() {
+        assertEquals(1000.0, Fire.futureValue(0.0, 100.0, 0.0, 10), 0.01)
+    }
 }

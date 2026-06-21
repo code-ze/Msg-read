@@ -20,9 +20,9 @@ import androidx.compose.material.icons.automirrored.filled.ShowChart
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Lightbulb
+import androidx.compose.material.icons.filled.Flag
 import androidx.compose.material.icons.filled.PieChart
 import androidx.compose.material.icons.filled.Refresh
-import androidx.compose.material.icons.filled.Savings
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -51,7 +51,7 @@ private val tabs = listOf(
     Tab(Screen.Analytics, "Analytics", Icons.Filled.PieChart),
     Tab(Screen.Insights, "Insights", Icons.Filled.Lightbulb),
     Tab(Screen.Investments, "Portfolio", Icons.AutoMirrored.Filled.ShowChart),
-    Tab(Screen.Retire, "Plan", Icons.Filled.Savings)
+    Tab(Screen.Retire, "Plan", Icons.Filled.Flag)
 )
 
 @OptIn(ExperimentalMaterial3Api::class)
