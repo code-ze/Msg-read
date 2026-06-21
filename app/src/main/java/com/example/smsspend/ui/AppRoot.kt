@@ -22,6 +22,7 @@ import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Lightbulb
 import androidx.compose.material.icons.filled.PieChart
 import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.Savings
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -49,7 +50,8 @@ private val tabs = listOf(
     Tab(Screen.Transactions, "Activity", Icons.AutoMirrored.Filled.ReceiptLong),
     Tab(Screen.Analytics, "Analytics", Icons.Filled.PieChart),
     Tab(Screen.Insights, "Insights", Icons.Filled.Lightbulb),
-    Tab(Screen.Investments, "Portfolio", Icons.AutoMirrored.Filled.ShowChart)
+    Tab(Screen.Investments, "Portfolio", Icons.AutoMirrored.Filled.ShowChart),
+    Tab(Screen.Retire, "Plan", Icons.Filled.Savings)
 )
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -83,6 +85,7 @@ fun AppRoot(vm: MainViewModel) {
         is Screen.Analytics -> "Analytics"
         is Screen.Insights -> "Insights & Action"
         is Screen.Investments -> "Portfolio"
+        is Screen.Retire -> "Retire Early"
         is Screen.Category -> s.name
         is Screen.Merchant -> s.name
         is Screen.Settings -> "Settings"
@@ -144,6 +147,7 @@ fun AppRoot(vm: MainViewModel) {
                 is Screen.Analytics -> AnalyticsScreen(vm)
                 is Screen.Insights -> InsightsScreen(vm)
                 is Screen.Investments -> InvestmentsScreen(vm)
+                is Screen.Retire -> RetireScreen(vm)
                 is Screen.Category -> CategoryDetailScreen(vm, s.name)
                 is Screen.Merchant -> MerchantDetailScreen(vm, s.name)
                 is Screen.Settings -> SettingsScreen(vm)

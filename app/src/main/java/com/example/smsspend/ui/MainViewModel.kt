@@ -3,6 +3,7 @@ package com.example.smsspend.ui
 import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.example.smsspend.data.BalanceSnapshot
 import com.example.smsspend.data.CategoryDef
 import com.example.smsspend.data.Holding
 import com.example.smsspend.data.IpoApplication
@@ -44,6 +45,7 @@ sealed interface Screen {
     data object Analytics : Screen
     data object Insights : Screen
     data object Investments : Screen
+    data object Retire : Screen
     data class Category(val name: String) : Screen
     data class Merchant(val name: String) : Screen
     data object Settings : Screen
@@ -74,17 +76,15 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     val categories: StateFlow<List<CategoryDef>> =
         repo.categories().stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
-    /** Current balance: the user's manual figure if set, else the latest scraped from SMS. */
-    val balance: StateFlow<Double> =
-        combine(repo.latestBalance(), manualBalance) { snap, manual ->
-            if (manual > 0.0) manual else snap?.balance ?: 0.0
-        }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0.0)
+    /** Balance readings over time (oldest first) — drives the trend chart + historical balance. */
+    val balancePoints: StateFlow<List<BalanceSnapshot>> =
+        repo.balanceSeries().stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
-    /** Balance readings over time (oldest first) for the trend sparkline. */
-    val balanceSeries: StateFlow<List<Float>> =
-        repo.balanceSeries()
-            .map { list -> list.map { it.balance.toFloat() } }
-            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+    /** Balance "right now": the user's manual figure if set, else the latest scraped reading. */
+    val currentBalance: StateFlow<Double> =
+        combine(balancePoints, manualBalance) { pts, manual ->
+            if (manual > 0.0) manual else pts.lastOrNull()?.balance ?: 0.0
+        }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0.0)
 
     /** Auto-detected salary deposit dates (pinned amount wins) used as pay-cycle boundaries. */
     val salaryDates: StateFlow<List<Long>> =
@@ -98,6 +98,28 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                 viewModelScope, SharingStarted.Eagerly,
                 resolve(periodReq.value, anchorDay.value, salaryDates.value)
             )
+
+    /**
+     * Balance to show for the *viewed* period: the latest reading at or before the period end
+     * (so old periods show the total as it was back then). The manual override applies only to
+     * the current period.
+     */
+    val balance: StateFlow<Double> =
+        combine(balancePoints, manualBalance, period) { pts, manual, p ->
+            val now = System.currentTimeMillis()
+            if (p.endExclusive > now && manual > 0.0) return@combine manual
+            val cutoff = minOf(p.endExclusive, now)
+            pts.lastOrNull { it.date <= cutoff }?.balance
+                ?: pts.lastOrNull()?.balance
+                ?: manual
+        }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0.0)
+
+    /** Trend points for the chart, scoped to readings up to the viewed period's end. */
+    val balanceSeries: StateFlow<List<BalanceSnapshot>> =
+        combine(balancePoints, period) { pts, p ->
+            val cutoff = minOf(p.endExclusive, System.currentTimeMillis())
+            pts.filter { it.date <= cutoff }.ifEmpty { pts }
+        }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     private val periodTxns: StateFlow<List<TxnEntity>> =
         period.flatMapLatest { p -> repo.txnsInPeriod(p.start, p.endExclusive) }
@@ -134,21 +156,22 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
 
     val recentTxns: StateFlow<List<TxnEntity>> = periodTxns
 
-    /** Typical cycle length in days (median gap between salaries), default 30. */
-    private fun cycleLength(sal: List<Long>): Int {
-        if (sal.size < 2) return 30
-        val gaps = sal.sorted().zipWithNext { a, b -> ((b - a) / (24L * 60 * 60 * 1000)).toInt() }
-        return gaps.sorted()[gaps.size / 2].coerceIn(20, 40)
+    private val dayMs = 24L * 60 * 60 * 1000
+
+    /**
+     * Days from *today* until the next salary — based on the real current cycle, NOT the viewed
+     * period (so browsing 2024 doesn't break "safe to spend"). Always 1..cycleLength.
+     */
+    private fun currentRemainingDays(sal: List<Long>, anchor: Int): Int {
+        val now = System.currentTimeMillis()
+        val cycle = Periods.salaryCycle(sal, 0, now) ?: Periods.payCycle(anchor, 0, now)
+        return ((cycle.endExclusive - now) / dayMs).toInt().coerceIn(1, 45)
     }
 
-    /** Estimated days until the next salary lands (cycle length minus days elapsed). */
-    private fun remainingDays(ins: Insights, sal: List<Long>): Int =
-        (cycleLength(sal) - ins.daysElapsed).coerceAtLeast(1)
-
-    /** Daily allowance that keeps the balance to the next salary (Safe-to-Spend). */
+    /** Daily allowance that keeps the (current) balance to the next salary (Safe-to-Spend). */
     val safeToSpend: StateFlow<Double> =
-        combine(balance, insights, salaryDates) { bal, ins, sal ->
-            Recommendations.safeDailyAllowance(bal, remainingDays(ins, sal))
+        combine(currentBalance, salaryDates, anchorDay) { bal, sal, anchor ->
+            Recommendations.safeDailyAllowance(bal, currentRemainingDays(sal, anchor))
         }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0.0)
 
     private val baselineStart = System.currentTimeMillis() - 90L * 24 * 60 * 60 * 1000
@@ -158,8 +181,8 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
 
     /** Actionable savings/investing recommendations for the Insights & Action tab. */
     val recommendations: StateFlow<List<Recommendations.Rec>> =
-        combine(totals, insights, balance, baselineSpend, salaryDates) { t, ins, bal, baseline, sal ->
-            buildRecommendations(t, ins, bal, baseline, remainingDays(ins, sal))
+        combine(totals, insights, currentBalance, baselineSpend, salaryDates) { t, ins, bal, baseline, sal ->
+            buildRecommendations(t, ins, bal, baseline, currentRemainingDays(sal, anchorDay.value))
         }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     private fun buildRecommendations(
@@ -199,6 +222,11 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         repo.txnsForCategory(start, end, category)
 
     fun txnsForMerchant(merchant: String) = repo.txnsForMerchant(merchant)
+
+    /** Loads the biggest transactions in a ±3-day window around a tapped balance-graph point. */
+    fun loadTxnsAround(date: Long, onResult: (List<TxnEntity>) -> Unit) {
+        viewModelScope.launch { onResult(repo.txnsBetween(date - 3 * dayMs, date + 3 * dayMs)) }
+    }
 
     fun subcategoriesInPeriod(start: Long, end: Long, category: String) =
         repo.subcategoriesInPeriod(start, end, category)
@@ -374,7 +402,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         val app = getApplication<Application>()
         val t = totals.value
         val ins = insights.value
-        val bal = balance.value
+        val bal = currentBalance.value
         val safe = safeToSpend.value
         val label = period.value.label
 

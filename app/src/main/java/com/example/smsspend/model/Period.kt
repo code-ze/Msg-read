@@ -76,19 +76,31 @@ object Periods {
      */
     fun salaryCycle(boundaries: List<Long>, offset: Int, now: Long): Period? {
         if (boundaries.isEmpty()) return null
-        val bs = boundaries.sorted()
-        val curIdx = bs.indexOfLast { it <= now }.let { if (it < 0) 0 else it }
+        // Detection can miss recent months (or only catch one). Project boundaries forward at the
+        // median gap so the *current* cycle is always a sane ~1-month window, never a 20-month span.
+        val bs = projectForward(boundaries.sorted(), now)
+        val curIdx = bs.indexOfLast { it <= now }.coerceAtLeast(0)
         val idx = (curIdx + offset).coerceIn(0, bs.size - 1)
         val start = bs[idx]
-        val open = idx == bs.size - 1
-        val end = if (!open) bs[idx + 1] else maxOf(now, start) + DAY_MS
-        val startCal = cal(start)
-        val label = if (open) {
-            "Since " + SimpleDateFormat("MMM d", Locale.getDefault()).format(startCal.time)
-        } else {
-            rangeLabel(startCal, cal(end))
-        }
-        return Period(PeriodType.SALARY, start, end, label)
+        val end = if (idx + 1 < bs.size) bs[idx + 1] else start + medianGap(bs)
+        return Period(PeriodType.SALARY, start, end, rangeLabel(cal(start), cal(end)))
+    }
+
+    /** Median gap between consecutive salaries (clamped to a sane 20–40 days), default 30. */
+    private fun medianGap(sorted: List<Long>): Long {
+        if (sorted.size < 2) return 30L * DAY_MS
+        val gaps = sorted.zipWithNext { a, b -> b - a }.sorted()
+        return gaps[gaps.size / 2].coerceIn(20L * DAY_MS, 40L * DAY_MS)
+    }
+
+    /** Extends the boundary list forward (by the median gap) until it passes [now]. */
+    private fun projectForward(sorted: List<Long>, now: Long): List<Long> {
+        if (sorted.isEmpty()) return sorted
+        val gap = medianGap(sorted)
+        val out = sorted.toMutableList()
+        var guard = 0
+        while (out.last() <= now + DAY_MS && guard < 600) { out.add(out.last() + gap); guard++ }
+        return out
     }
 
     private const val DAY_MS = 24L * 60 * 60 * 1000

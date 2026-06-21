@@ -28,6 +28,9 @@ class Repository(private val appContext: Context) {
 
     fun txnsForMerchant(merchant: String): Flow<List<TxnEntity>> = txnDao.forMerchant(merchant)
 
+    suspend fun txnsBetween(start: Long, end: Long): List<TxnEntity> =
+        withContext(Dispatchers.IO) { txnDao.between(start, end) }
+
     fun merchantsInPeriod(start: Long, end: Long): Flow<List<MerchantSum>> =
         txnDao.merchantsInPeriod(start, end)
 

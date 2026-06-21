@@ -35,6 +35,7 @@ fun InsightsScreen(vm: MainViewModel) {
     val recs by vm.recommendations.collectAsStateWithLifecycle()
     val safe by vm.safeToSpend.collectAsStateWithLifecycle()
     val insights by vm.insights.collectAsStateWithLifecycle()
+    val totals by vm.totals.collectAsStateWithLifecycle()
 
     Column(Modifier.fillMaxSize()) {
         PeriodBar(
@@ -48,6 +49,8 @@ fun InsightsScreen(vm: MainViewModel) {
 
         LazyColumn(Modifier.fillMaxSize()) {
             item { SafeToSpendCard(safe, insights.perDay) }
+
+            item { PeriodSummaryCard(totals.income, totals.spent, totals.net, totals.byCategory.firstOrNull()?.category) }
 
             item { SectionHeader("Recommendations") }
 
@@ -76,6 +79,26 @@ fun InsightsScreen(vm: MainViewModel) {
                 )
             }
             item { Box(Modifier.height(24.dp)) }
+        }
+    }
+}
+
+@Composable
+private fun PeriodSummaryCard(income: Double, spent: Double, net: Double, topCategory: String?) {
+    val savingsRate = if (income > 0) ((income - spent) / income * 100).toInt() else null
+    Card(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp)) {
+        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text("This period", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
+            InsightLine(
+                "Savings rate",
+                if (savingsRate != null) "$savingsRate%" else "—",
+                if (savingsRate != null && savingsRate < 0) "spending more than you earn" else "of income kept"
+            )
+            InsightLine(
+                "Net flow",
+                (if (net >= 0) "+" else "−") + Format.omr2(kotlin.math.abs(net)) + " OMR", null
+            )
+            if (topCategory != null) InsightLine("Biggest category", topCategory, null)
         }
     }
 }

@@ -13,21 +13,29 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.example.smsspend.data.BalanceSnapshot
+import com.example.smsspend.data.TxnEntity
 import com.example.smsspend.model.Insights
 import com.example.smsspend.parser.Categorizer
 import kotlin.math.abs
 import kotlin.math.roundToInt
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun DashboardScreen(vm: MainViewModel) {
     val period by vm.period.collectAsStateWithLifecycle()
@@ -43,6 +51,10 @@ fun DashboardScreen(vm: MainViewModel) {
     val balanceSeries by vm.balanceSeries.collectAsStateWithLifecycle()
     val safeToSpend by vm.safeToSpend.collectAsStateWithLifecycle()
 
+    val isCurrent = period.endExclusive > System.currentTimeMillis()
+    var selectedPoint by remember { mutableStateOf<BalanceSnapshot?>(null) }
+    var nearbyTxns by remember { mutableStateOf<List<TxnEntity>>(emptyList()) }
+
     Column(Modifier.fillMaxSize()) {
         PeriodBar(
             period = period,
@@ -54,7 +66,19 @@ fun DashboardScreen(vm: MainViewModel) {
         )
 
         LazyColumn(Modifier.fillMaxSize()) {
-            item { HeroCard(balance, safeToSpend, balanceSeries) }
+            item {
+                HeroCard(
+                    balance = balance,
+                    safeToSpend = safeToSpend,
+                    isCurrent = isCurrent,
+                    periodEndLabel = Format.day(minOf(period.endExclusive, System.currentTimeMillis())),
+                    points = balanceSeries,
+                    onTapPoint = { p ->
+                        selectedPoint = p
+                        vm.loadTxnsAround(p.date) { nearbyTxns = it }
+                    }
+                )
+            }
 
             item {
                 Row(
@@ -137,17 +161,36 @@ fun DashboardScreen(vm: MainViewModel) {
             item { Box(Modifier.height(24.dp)) }
         }
     }
+
+    selectedPoint?.let { point ->
+        ModalBottomSheet(onDismissRequest = { selectedPoint = null }) {
+            BalancePointDetail(point, nearbyTxns) { merchant ->
+                selectedPoint = null
+                vm.navigate(Screen.Merchant(merchant))
+            }
+        }
+    }
 }
 
 @Composable
-private fun HeroCard(balance: Double, safeToSpend: Double, series: List<Float>) {
+private fun HeroCard(
+    balance: Double,
+    safeToSpend: Double,
+    isCurrent: Boolean,
+    periodEndLabel: String,
+    points: List<BalanceSnapshot>,
+    onTapPoint: (BalanceSnapshot) -> Unit
+) {
     Card(
         Modifier.fillMaxWidth().padding(16.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
     ) {
         Column(Modifier.padding(20.dp)) {
-            Text("Total balance", style = MaterialTheme.typography.labelMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text(
+                if (isCurrent) "Total balance" else "Balance on $periodEndLabel",
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
             Row(verticalAlignment = Alignment.Bottom) {
                 Text(
                     if (balance > 0) Format.money(balance) else "—",
@@ -161,7 +204,7 @@ private fun HeroCard(balance: Double, safeToSpend: Double, series: List<Float>) 
                     modifier = Modifier.padding(bottom = 6.dp)
                 )
             }
-            if (safeToSpend > 0) {
+            if (isCurrent && safeToSpend > 0) {
                 Text(
                     "Safe to spend ≈ ${Format.omr2(safeToSpend)} OMR/day until next salary",
                     style = MaterialTheme.typography.bodyMedium,
@@ -169,12 +212,53 @@ private fun HeroCard(balance: Double, safeToSpend: Double, series: List<Float>) 
                     modifier = Modifier.padding(top = 4.dp)
                 )
             }
-            if (series.size >= 2) {
-                Sparkline(
-                    values = series,
+            if (points.size >= 2) {
+                InteractiveBalanceChart(
+                    points = points,
                     color = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.fillMaxWidth().height(56.dp).padding(top = 14.dp)
+                    modifier = Modifier.fillMaxWidth().height(64.dp).padding(top = 14.dp),
+                    onTap = onTapPoint
                 )
+                Text(
+                    "Tap the line to see what happened on any day",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(top = 6.dp)
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun BalancePointDetail(
+    point: BalanceSnapshot,
+    txns: List<TxnEntity>,
+    onMerchant: (String) -> Unit
+) {
+    Column(Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, bottom = 28.dp)) {
+        Text(Format.day(point.date), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+        Text(
+            "Balance ${Format.money(point.balance)} OMR",
+            style = MaterialTheme.typography.titleLarge,
+            color = MaterialTheme.colorScheme.primary
+        )
+        Text(
+            "Biggest movements around this date",
+            style = MaterialTheme.typography.titleSmall,
+            fontWeight = FontWeight.Bold,
+            modifier = Modifier.padding(top = 16.dp, bottom = 4.dp)
+        )
+        if (txns.isEmpty()) {
+            Text(
+                "No transactions found in this window.",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        } else {
+            txns.take(8).forEach { t ->
+                TxnRow(t) { onMerchant(t.merchantClean) }
+                HorizontalDivider(Modifier.padding(start = 42.dp))
             }
         }
     }

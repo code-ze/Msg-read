@@ -74,6 +74,10 @@ interface TxnDao {
     )
     fun categorySpendSince(start: Long): Flow<List<CategorySum>>
 
+    /** Transactions within a time window, biggest first — for inspecting a balance-graph dip. */
+    @Query("SELECT * FROM txn WHERE date >= :start AND date < :end ORDER BY ABS(amount) DESC")
+    suspend fun between(start: Long, end: Long): List<TxnEntity>
+
     @Query("SELECT * FROM txn ORDER BY date DESC")
     suspend fun allForExport(): List<TxnEntity>
 

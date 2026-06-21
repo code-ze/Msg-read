@@ -1,9 +1,14 @@
 package com.example.smsspend.ui
 
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
@@ -12,9 +17,12 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import com.example.smsspend.data.BalanceSnapshot
+import kotlin.math.roundToInt
 
 /** One wedge of a donut / one series in a chart. */
 data class ChartSlice(val label: String, val value: Double, val color: Color)
@@ -111,5 +119,59 @@ fun Sparkline(
             )
         )
         drawPath(line, color, style = Stroke(width = 3.dp.toPx(), cap = StrokeCap.Round))
+    }
+}
+
+/**
+ * Like [Sparkline] but tappable: tapping selects the nearest reading, draws a marker, and
+ * reports it via [onTap] so the caller can explain what happened at that dip/spike.
+ */
+@Composable
+fun InteractiveBalanceChart(
+    points: List<BalanceSnapshot>,
+    color: Color,
+    modifier: Modifier = Modifier,
+    onTap: (BalanceSnapshot) -> Unit
+) {
+    if (points.size < 2) return
+    var selected by remember(points) { mutableIntStateOf(-1) }
+    val values = points.map { it.balance.toFloat() }
+    Canvas(
+        modifier.pointerInput(points) {
+            detectTapGestures { offset ->
+                val i = ((offset.x / size.width) * (points.size - 1))
+                    .roundToInt().coerceIn(0, points.size - 1)
+                selected = i
+                onTap(points[i])
+            }
+        }
+    ) {
+        val min = values.min()
+        val max = values.max()
+        val range = (max - min).takeIf { it > 0f } ?: 1f
+        val stepX = size.width / (values.size - 1)
+        val pad = 6.dp.toPx()
+        val h = size.height - pad * 2
+        fun px(i: Int) = i * stepX
+        fun py(i: Int) = pad + (h - (values[i] - min) / range * h)
+
+        val line = Path().apply {
+            moveTo(px(0), py(0))
+            for (i in 1 until values.size) {
+                val midX = (px(i - 1) + px(i)) / 2f
+                cubicTo(midX, py(i - 1), midX, py(i), px(i), py(i))
+            }
+        }
+        val fill = Path().apply {
+            addPath(line); lineTo(size.width, size.height); lineTo(0f, size.height); close()
+        }
+        drawPath(fill, brush = Brush.verticalGradient(listOf(color.copy(alpha = 0.30f), color.copy(alpha = 0f))))
+        drawPath(line, color, style = Stroke(width = 3.dp.toPx(), cap = StrokeCap.Round))
+
+        if (selected in values.indices) {
+            val x = px(selected)
+            drawLine(color.copy(alpha = 0.4f), Offset(x, 0f), Offset(x, size.height), strokeWidth = 1.5.dp.toPx())
+            drawCircle(color, radius = 5.dp.toPx(), center = Offset(x, py(selected)))
+        }
     }
 }
