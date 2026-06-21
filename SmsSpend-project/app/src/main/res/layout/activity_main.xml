@@ -17,14 +17,17 @@
         android:layout_height="1dp"
         android:background="@color/divider"/>
 
-    <com.google.android.material.bottomnavigation.BottomNavigationView
+    <com.google.android.material.tabs.TabLayout
         android:id="@+id/bottom_nav"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:background="@color/card_bg"
-        app:menu="@menu/bottom_nav_menu"
-        app:itemIconTint="@drawable/nav_color_selector"
-        app:itemTextColor="@drawable/nav_color_selector"
-        app:labelVisibilityMode="labeled"
-        app:itemRippleColor="#1400C896"/>
+        app:tabMode="scrollable"
+        app:tabGravity="start"
+        app:tabTextColor="@color/text_secondary"
+        app:tabSelectedTextColor="@color/teal"
+        app:tabIndicatorColor="@color/teal"
+        app:tabIndicatorHeight="2dp"
+        app:tabRippleColor="#1400C896"
+        app:tabTextAppearance="@style/TabTextStyle"/>
 </LinearLayout>

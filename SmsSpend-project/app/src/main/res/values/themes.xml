@@ -14,6 +14,10 @@
         <item name="bottomSheetDialogTheme">@style/BottomSheetTheme</item>
     </style>
 
+    <style name="TabTextStyle" parent="TextAppearance.Design.Tab">
+        <item name="android:textSize">11sp</item>
+    </style>
+
     <style name="BottomSheetTheme" parent="Theme.MaterialComponents.BottomSheetDialog">
         <item name="bottomSheetStyle">@style/BottomSheetStyle</item>
         <item name="android:navigationBarColor">@color/card_bg2</item>

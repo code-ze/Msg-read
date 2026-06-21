@@ -10,7 +10,7 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
 import androidx.fragment.app.Fragment
-import com.google.android.material.bottomnavigation.BottomNavigationView
+import com.google.android.material.tabs.TabLayout
 
 class MainActivity : AppCompatActivity() {
 
@@ -22,28 +22,34 @@ class MainActivity : AppCompatActivity() {
         super.onCreate(s)
         setContentView(R.layout.activity_main)
 
-        val nav = findViewById<BottomNavigationView>(R.id.bottom_nav)
+        val nav = findViewById<TabLayout>(R.id.bottom_nav)
 
         if (ContextCompat.checkSelfPermission(this, Manifest.permission.READ_SMS)
             != PackageManager.PERMISSION_GRANTED) {
             reqPerm.launch(Manifest.permission.READ_SMS)
         }
 
+        listOf("🏠 Home", "📋 Activity", "📊 Analytics", "💡 Insights", "📈 Portfolio", "🔮 Retire")
+            .forEach { nav.addTab(nav.newTab().setText(it)) }
+
         showFragment(HomeFragment())
 
-        nav.setOnItemSelectedListener { item ->
-            val f: Fragment = when (item.itemId) {
-                R.id.nav_home -> HomeFragment()
-                R.id.nav_activity -> ActivityFragment()
-                R.id.nav_analytics -> AnalyticsFragment()
-                R.id.nav_insights -> InsightsFragment()
-                R.id.nav_portfolio -> PortfolioFragment()
-                R.id.nav_retire -> RetirementFragment()
-                else -> return@setOnItemSelectedListener false
+        nav.addOnTabSelectedListener(object : TabLayout.OnTabSelectedListener {
+            override fun onTabSelected(tab: TabLayout.Tab) {
+                val f: Fragment = when (tab.position) {
+                    0 -> HomeFragment()
+                    1 -> ActivityFragment()
+                    2 -> AnalyticsFragment()
+                    3 -> InsightsFragment()
+                    4 -> PortfolioFragment()
+                    5 -> RetirementFragment()
+                    else -> return
+                }
+                showFragment(f)
             }
-            showFragment(f)
-            true
-        }
+            override fun onTabUnselected(tab: TabLayout.Tab) {}
+            override fun onTabReselected(tab: TabLayout.Tab) {}
+        })
     }
 
     private fun showFragment(f: Fragment) {
