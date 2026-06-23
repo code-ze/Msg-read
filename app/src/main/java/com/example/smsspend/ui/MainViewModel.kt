@@ -17,6 +17,7 @@ import com.example.smsspend.model.Periods
 import com.example.smsspend.model.Recommendations
 import com.example.smsspend.model.SalaryDetector
 import com.example.smsspend.model.Totals
+import com.example.smsspend.parser.Categorizer
 import com.example.smsspend.widget.WidgetUpdater
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -64,6 +65,12 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     val liveMsxPrices = MutableStateFlow(Prefs.getLiveMsxPrices(app))
     val salaryAmount = MutableStateFlow(Prefs.getSalaryAmount(app))
     val manualBalance = MutableStateFlow(Prefs.getManualBalance(app))
+    val dailyLimit = MutableStateFlow(Prefs.getDailyLimit(app))
+    val monthlyBudget = MutableStateFlow(Prefs.getMonthlyBudget(app))
+    val bestStreak = MutableStateFlow(Prefs.getBestStreak(app))
+    val categoryBudgets = MutableStateFlow(
+        Categorizer.allCategories.associateWith { Prefs.getCategoryBudget(app, it) }
+    )
 
     val periodReq = MutableStateFlow<PeriodReq>(PeriodReq.Salary(0))
 
@@ -173,6 +180,51 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         combine(currentBalance, salaryDates, anchorDay) { bal, sal, anchor ->
             Recommendations.safeDailyAllowance(bal, currentRemainingDays(sal, anchor))
         }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0.0)
+
+    /** Last 90 days of all spending txns — for streak and today-limit checks. */
+    private val spendingTxns90: StateFlow<List<TxnEntity>> =
+        repo.txnsInPeriod(
+            System.currentTimeMillis() - 90L * dayMs,
+            System.currentTimeMillis() + dayMs
+        ).stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    /** Total spending for today (calendar day, device-local midnight). */
+    val todaySpend: StateFlow<Double> =
+        spendingTxns90.map { txns ->
+            val todayStart = (System.currentTimeMillis() / dayMs) * dayMs
+            txns.filter { Insights.isSpending(it) && it.date >= todayStart }.sumOf { it.amount }
+        }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0.0)
+
+    /** Consecutive days (ending today) where spending was ≤ dailyLimit. 0 if limit not set. */
+    val currentStreak: StateFlow<Int> =
+        combine(spendingTxns90, dailyLimit) { txns, limit ->
+            if (limit <= 0) 0
+            else computeStreak(txns.filter { Insights.isSpending(it) }, limit)
+        }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0)
+
+    private fun computeStreak(spendingTxns: List<TxnEntity>, limit: Double): Int {
+        val todayIdx = System.currentTimeMillis() / dayMs
+        val byDay = spendingTxns.groupBy { it.date / dayMs }
+            .mapValues { (_, list) -> list.sumOf { it.amount } }
+        var streak = 0
+        var day = todayIdx
+        while (streak <= 90) {
+            val spent = byDay[day] ?: 0.0
+            if (spent <= limit) { streak++; day-- } else break
+        }
+        return streak
+    }
+
+    init {
+        viewModelScope.launch {
+            currentStreak.collect { streak ->
+                if (streak > bestStreak.value) {
+                    bestStreak.value = streak
+                    Prefs.setBestStreak(getApplication<Application>(), streak)
+                }
+            }
+        }
+    }
 
     private val baselineStart = System.currentTimeMillis() - 90L * 24 * 60 * 60 * 1000
     private val baselineSpend: StateFlow<List<com.example.smsspend.data.CategorySum>> =
@@ -352,6 +404,18 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     fun setManualBalance(v: Double) {
         Prefs.setManualBalance(getApplication<Application>(), v)
         manualBalance.value = v
+    }
+    fun setDailyLimit(v: Double) {
+        Prefs.setDailyLimit(getApplication<Application>(), v)
+        dailyLimit.value = v
+    }
+    fun setMonthlyBudget(v: Double) {
+        Prefs.setMonthlyBudget(getApplication<Application>(), v)
+        monthlyBudget.value = v
+    }
+    fun setCategoryBudget(category: String, v: Double) {
+        Prefs.setCategoryBudget(getApplication<Application>(), category, v)
+        categoryBudgets.value = categoryBudgets.value + (category to v)
     }
 
     // ---- data ----

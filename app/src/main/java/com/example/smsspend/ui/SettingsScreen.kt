@@ -37,6 +37,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.core.content.FileProvider
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.example.smsspend.parser.Categorizer
 import java.io.File
 
 @Composable
@@ -48,6 +49,9 @@ fun SettingsScreen(vm: MainViewModel) {
     val salary by vm.salaryAmount.collectAsStateWithLifecycle()
     val manualBalance by vm.manualBalance.collectAsStateWithLifecycle()
     val salaryDates by vm.salaryDates.collectAsStateWithLifecycle()
+    val dailyLimit by vm.dailyLimit.collectAsStateWithLifecycle()
+    val monthlyBudget by vm.monthlyBudget.collectAsStateWithLifecycle()
+    val categoryBudgets by vm.categoryBudgets.collectAsStateWithLifecycle()
 
     Column(
         Modifier
@@ -98,6 +102,70 @@ fun SettingsScreen(vm: MainViewModel) {
                     initial = manualBalance,
                     onSave = { vm.setManualBalance(it) }
                 )
+            }
+        }
+
+        // ---- budgets & limits ----
+        Card(Modifier.fillMaxWidth()) {
+            Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text("Budgets & limits", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                Text(
+                    "Set a daily spending cap for the streak counter and alerts. Set a monthly " +
+                        "budget to see a progress bar in Insights. Leave at 0 to disable.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                AmountField(
+                    label = "Daily limit (OMR, 0 = off)",
+                    initial = dailyLimit,
+                    onSave = { vm.setDailyLimit(it) }
+                )
+                AmountField(
+                    label = "Monthly budget (OMR, 0 = off)",
+                    initial = monthlyBudget,
+                    onSave = { vm.setMonthlyBudget(it) }
+                )
+            }
+        }
+
+        // ---- per-category budgets ----
+        val spendingCats = Categorizer.allCategories.filter {
+            it !in setOf(Categorizer.INCOME, Categorizer.DIVIDENDS)
+        }
+        var showAllCats by remember { mutableStateOf(false) }
+        val catsToShow = if (showAllCats) spendingCats
+            else spendingCats.filter { (categoryBudgets[it] ?: 0.0) > 0 }
+        Card(Modifier.fillMaxWidth()) {
+            Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically) {
+                    Text("Category budgets", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                    OutlinedButton(
+                        onClick = { showAllCats = !showAllCats },
+                        modifier = Modifier.padding(start = 8.dp)
+                    ) {
+                        Text(if (showAllCats) "Show less" else "Add category")
+                    }
+                }
+                Text(
+                    "Per-category limits appear as progress bars in Insights. " +
+                        "Set to 0 to remove a category from the list.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                if (catsToShow.isEmpty() && !showAllCats) {
+                    Text("No category budgets set. Tap 'Add category' to set one.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant)
+                } else {
+                    catsToShow.forEach { cat ->
+                        AmountField(
+                            label = "$cat (OMR/month, 0 = off)",
+                            initial = categoryBudgets[cat] ?: 0.0,
+                            onSave = { vm.setCategoryBudget(cat, it) }
+                        )
+                    }
+                }
             }
         }
 

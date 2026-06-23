@@ -43,6 +43,25 @@ object Prefs {
     fun getLiveMsxPrices(c: Context): Boolean = sp(c).getBoolean(KEY_LIVE_MSX, false)
     fun setLiveMsxPrices(c: Context, v: Boolean) = sp(c).edit().putBoolean(KEY_LIVE_MSX, v).apply()
 
+    // --- budgets & limits ---
+    private const val KEY_DAILY_LIMIT = "daily_limit"
+    private const val KEY_MONTHLY_BUDGET = "monthly_budget"
+    private const val KEY_BEST_STREAK = "best_streak"
+
+    fun getDailyLimit(c: Context): Double = sp(c).getFloat(KEY_DAILY_LIMIT, 0f).toDouble()
+    fun setDailyLimit(c: Context, v: Double) = sp(c).edit().putFloat(KEY_DAILY_LIMIT, v.toFloat()).apply()
+
+    fun getMonthlyBudget(c: Context): Double = sp(c).getFloat(KEY_MONTHLY_BUDGET, 0f).toDouble()
+    fun setMonthlyBudget(c: Context, v: Double) = sp(c).edit().putFloat(KEY_MONTHLY_BUDGET, v.toFloat()).apply()
+
+    fun getBestStreak(c: Context): Int = sp(c).getInt(KEY_BEST_STREAK, 0)
+    fun setBestStreak(c: Context, v: Int) = sp(c).edit().putInt(KEY_BEST_STREAK, v).apply()
+
+    fun getCategoryBudget(c: Context, category: String): Double =
+        sp(c).getFloat("budget_${category.replace(' ', '_')}", 0f).toDouble()
+    fun setCategoryBudget(c: Context, category: String, v: Double) =
+        sp(c).edit().putFloat("budget_${category.replace(' ', '_')}", v.toFloat()).apply()
+
     // --- per-widget config: which metric this widget shows ---
     val metricLabels = linkedMapOf(
         "balance" to "Balance",

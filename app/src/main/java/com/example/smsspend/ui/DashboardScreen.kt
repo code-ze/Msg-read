@@ -25,6 +25,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -50,6 +51,8 @@ fun DashboardScreen(vm: MainViewModel) {
     val topMerchants by vm.topMerchants.collectAsStateWithLifecycle()
     val balanceSeries by vm.balanceSeries.collectAsStateWithLifecycle()
     val safeToSpend by vm.safeToSpend.collectAsStateWithLifecycle()
+    val dailyLimit by vm.dailyLimit.collectAsStateWithLifecycle()
+    val todaySpend by vm.todaySpend.collectAsStateWithLifecycle()
 
     val isCurrent = period.endExclusive > System.currentTimeMillis()
     var selectedPoint by remember { mutableStateOf<BalanceSnapshot?>(null) }
@@ -110,7 +113,7 @@ fun DashboardScreen(vm: MainViewModel) {
                 }
             }
 
-            item { QuickInsightsCard(insights, prevSpent) }
+            item { QuickInsightsCard(insights, prevSpent, dailyLimit, todaySpend) }
 
             if (topMerchants.isNotEmpty()) {
                 item {
@@ -265,12 +268,38 @@ private fun BalancePointDetail(
 }
 
 @Composable
-private fun QuickInsightsCard(insights: Insights, prevSpent: Double) {
+private fun QuickInsightsCard(
+    insights: Insights,
+    prevSpent: Double,
+    dailyLimit: Double,
+    todaySpend: Double
+) {
+    val limitOver = dailyLimit > 0 && todaySpend > dailyLimit
+    val limitNear = dailyLimit > 0 && todaySpend > dailyLimit * 0.8
+    val limitColor: Color? = when {
+        limitOver -> MaterialTheme.colorScheme.error
+        limitNear -> Color(0xFFE0A45B)
+        else -> null
+    }
+
     Card(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp)) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             Text("Quick insights", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
             InsightLine("Per day", "${Format.omr2(insights.perDay)} OMR",
                 "day ${insights.daysElapsed}/${insights.daysTotal}")
+            if (dailyLimit > 0) {
+                val hint = when {
+                    limitOver -> "over your ${Format.omr2(dailyLimit)} limit!"
+                    limitNear -> "near your ${Format.omr2(dailyLimit)} limit"
+                    else -> "limit ${Format.omr2(dailyLimit)} OMR/day"
+                }
+                InsightLine(
+                    "Today",
+                    "${Format.omr2(todaySpend)} OMR",
+                    hint,
+                    valueColor = limitColor
+                )
+            }
             InsightLine("Projected this period", "${Format.omr2(insights.projectedSpend)} OMR",
                 trendSuffix(insights.projectedSpend, prevSpent))
             insights.runwayDays?.let {
@@ -293,7 +322,7 @@ private fun trendSuffix(projected: Double, prevSpent: Double): String? {
 }
 
 @Composable
-internal fun InsightLine(label: String, value: String, hint: String?) {
+internal fun InsightLine(label: String, value: String, hint: String?, valueColor: Color? = null) {
     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
         Text(
             label,
@@ -302,7 +331,12 @@ internal fun InsightLine(label: String, value: String, hint: String?) {
             modifier = Modifier.weight(1f)
         )
         Column(horizontalAlignment = Alignment.End) {
-            Text(value, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold)
+            Text(
+                value,
+                style = MaterialTheme.typography.bodyMedium,
+                fontWeight = FontWeight.SemiBold,
+                color = valueColor ?: MaterialTheme.colorScheme.onSurface
+            )
             if (hint != null) {
                 Text(hint, style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant)
