@@ -5,7 +5,10 @@ import android.content.pm.PackageManager
 import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
+import android.text.Editable
+import android.text.TextWatcher
 import android.view.ViewGroup
+import android.widget.EditText
 import android.widget.TextView
 import androidx.appcompat.app.AlertDialog
 import androidx.core.content.ContextCompat
@@ -18,6 +21,7 @@ class ActivityFragment : Fragment() {
     private var all: List<Txn> = emptyList()
     private lateinit var adapter: TxnAdapter
     private var filter = "ALL"
+    private var query = ""
 
     private val cats = listOf(
         "Food Delivery", "Cafes & Tea", "Restaurants", "Groceries",
