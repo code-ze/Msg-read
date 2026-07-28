@@ -106,6 +106,29 @@ interface BalanceDao {
 }
 
 @Dao
+interface CardLimitDao {
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertAll(items: List<CardLimitSnapshot>)
+
+    /** Latest remaining-credit reading per card — the basis for "owed on card". */
+    @Query(
+        "SELECT * FROM card_limit_snapshot WHERE date = " +
+            "(SELECT MAX(date) FROM card_limit_snapshot c2 WHERE c2.cardLast4 = card_limit_snapshot.cardLast4)"
+    )
+    fun latestPerCard(): Flow<List<CardLimitSnapshot>>
+
+    /** Highest remaining credit ever seen per card — used to infer the card's total limit. */
+    @Query("SELECT cardLast4, MAX(availableLimit) AS peak FROM card_limit_snapshot GROUP BY cardLast4")
+    fun peakPerCard(): Flow<List<CardPeak>>
+
+    @Query("SELECT * FROM card_limit_snapshot ORDER BY date DESC")
+    suspend fun allForExport(): List<CardLimitSnapshot>
+}
+
+/** The largest remaining credit ever reported for a card. */
+data class CardPeak(val cardLast4: String, val peak: Double)
+
+@Dao
 interface HoldingDao {
     @Query("SELECT * FROM holding ORDER BY name COLLATE NOCASE")
     fun all(): Flow<List<Holding>>

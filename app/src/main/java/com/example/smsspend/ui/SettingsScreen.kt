@@ -52,6 +52,10 @@ fun SettingsScreen(vm: MainViewModel) {
     val dailyLimit by vm.dailyLimit.collectAsStateWithLifecycle()
     val monthlyBudget by vm.monthlyBudget.collectAsStateWithLifecycle()
     val categoryBudgets by vm.categoryBudgets.collectAsStateWithLifecycle()
+    val creditLimit by vm.creditLimit.collectAsStateWithLifecycle()
+    val creditLimitTotal by vm.effectiveCreditLimit.collectAsStateWithLifecycle()
+    val creditLimitInferred by vm.creditLimitInferred.collectAsStateWithLifecycle()
+    val cardOwed by vm.cardOwed.collectAsStateWithLifecycle()
 
     Column(
         Modifier
@@ -101,6 +105,40 @@ fun SettingsScreen(vm: MainViewModel) {
                     label = "Manual balance (OMR, 0 = from SMS)",
                     initial = manualBalance,
                     onSave = { vm.setManualBalance(it) }
+                )
+            }
+        }
+
+        // ---- credit card ----
+        Card(Modifier.fillMaxWidth()) {
+            Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text("Credit card", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                Text(
+                    "What you owe is read automatically from the \"Available limit\" in each card " +
+                        "SMS. Enter your total credit limit so the amount owed is exact — leave at " +
+                        "0 and the app guesses it from the highest available credit it has seen.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                AmountField(
+                    label = "Total credit limit (OMR, 0 = auto)",
+                    initial = creditLimit,
+                    onSave = { vm.setCreditLimit(it) }
+                )
+                Text(
+                    if (cardOwed > 0)
+                        "Currently owed ${Format.omr2(cardOwed)} OMR of ${Format.omr2(creditLimitTotal)} OMR" +
+                            (if (creditLimitInferred) " (limit auto-detected)" else "")
+                    else
+                        "No card activity detected yet.",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Text(
+                    "Foreign-currency purchases are converted to rials using the drop in your " +
+                        "available limit, so they match what the bank actually charged.",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
         }

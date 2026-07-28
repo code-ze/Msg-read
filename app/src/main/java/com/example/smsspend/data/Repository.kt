@@ -20,6 +20,7 @@ class Repository(private val appContext: Context) {
     private val ipoAppDao = db.ipoApplicationDao()
     private val balanceDao = db.balanceDao()
     private val categoryDao = db.categoryDao()
+    private val cardLimitDao = db.cardLimitDao()
 
     fun txnsInPeriod(start: Long, end: Long): Flow<List<TxnEntity>> = txnDao.inPeriod(start, end)
 
@@ -71,6 +72,10 @@ class Repository(private val appContext: Context) {
     fun latestBalance(): Flow<BalanceSnapshot?> = balanceDao.latest()
     fun balanceSeries(): Flow<List<BalanceSnapshot>> = balanceDao.series()
 
+    // ---- credit cards ----
+    fun cardLimits(): Flow<List<CardLimitSnapshot>> = cardLimitDao.latestPerCard()
+    fun cardPeaks(): Flow<List<CardPeak>> = cardLimitDao.peakPerCard()
+
     // ---- portfolio / investments ----
     fun holdings(): Flow<List<Holding>> = holdingDao.all()
     fun dividendsByCompany(): Flow<List<MerchantSum>> = txnDao.dividendsByCompany()
@@ -109,7 +114,9 @@ class Repository(private val appContext: Context) {
                 date = p.date,
                 category = category,
                 subcategory = subcategory,
-                body = p.body
+                body = p.body,
+                currency = p.currency,
+                originalAmount = p.originalAmount
             )
         }
         txnDao.insertAll(entities)
@@ -134,6 +141,13 @@ class Repository(private val appContext: Context) {
         // Running balance readings -> balance-over-time series for trends/predictions.
         if (scan.balances.isNotEmpty()) {
             balanceDao.insertAll(scan.balances.map { BalanceSnapshot(it.date, it.balance) })
+        }
+
+        // Remaining credit per card -> "owed on card" without the user typing anything.
+        if (scan.cardLimits.isNotEmpty()) {
+            cardLimitDao.insertAll(
+                scan.cardLimits.map { CardLimitSnapshot(it.date, it.cardLast4, it.availableLimit) }
+            )
         }
 
         txnDao.count() - before
@@ -195,7 +209,7 @@ class Repository(private val appContext: Context) {
         val root = JSONObject()
         root.put("app", "SMS Spend")
         root.put("exportedAt", System.currentTimeMillis())
-        root.put("schemaVersion", 4)
+        root.put("schemaVersion", 5)
 
         root.put("settings", JSONObject().apply {
             put("anchorDay", Prefs.getAnchorDay(appContext))
@@ -203,6 +217,9 @@ class Repository(private val appContext: Context) {
             put("manualBalance", Prefs.getManualBalance(appContext))
             put("investAsSpending", Prefs.getInvestAsSpending(appContext))
             put("liveMsxPrices", Prefs.getLiveMsxPrices(appContext))
+            put("creditLimit", Prefs.getCreditLimit(appContext))
+            put("dailyLimit", Prefs.getDailyLimit(appContext))
+            put("monthlyBudget", Prefs.getMonthlyBudget(appContext))
         })
 
         val txns = txnDao.allForExport()
@@ -215,6 +232,18 @@ class Repository(private val appContext: Context) {
                 put("merchant", t.merchantClean)
                 put("category", t.category)
                 put("subcategory", t.subcategory)
+                if (t.isForeign) {
+                    put("currency", t.currency)
+                    put("originalAmount", t.originalAmount)
+                }
+            })
+        })
+
+        root.put("cardLimits", JSONArray().apply {
+            for (c in cardLimitDao.allForExport()) put(JSONObject().apply {
+                put("date", c.date)
+                put("cardLast4", c.cardLast4)
+                put("availableLimit", c.availableLimit)
             })
         })
 

@@ -21,8 +21,17 @@ data class TxnEntity(
     val category: String,
     // Added in schema v4; default keeps the migration ADD COLUMN in sync with Room's schema.
     @ColumnInfo(defaultValue = "''") val subcategory: String = "",
-    val body: String
-)
+    val body: String,
+    /**
+     * Currency the purchase was billed in (v5). [amount] is always OMR; when this is not "OMR"
+     * the rial figure is a conversion and [originalAmount] holds what the merchant charged.
+     */
+    @ColumnInfo(defaultValue = "'OMR'") val currency: String = "OMR",
+    @ColumnInfo(defaultValue = "0") val originalAmount: Double = 0.0
+) {
+    /** True when [amount] is a converted figure rather than the amount as billed. */
+    val isForeign: Boolean get() = currency != "OMR" && originalAmount > 0.0
+}
 
 /**
  * A learned per-merchant categorization (category + optional sub-category). When the user
@@ -87,4 +96,17 @@ data class IpoApplication(
 data class BalanceSnapshot(
     @PrimaryKey val date: Long,
     val balance: Double
+)
+
+/**
+ * Remaining credit on a card, as reported by a card SMS ("Available limit OMR …"). Kept apart
+ * from [BalanceSnapshot] because the two are opposite in meaning: a bank balance is money you
+ * have, remaining credit is headroom on money you owe. Outstanding debt is the card's total
+ * limit minus the latest reading here.
+ */
+@Entity(tableName = "card_limit_snapshot")
+data class CardLimitSnapshot(
+    @PrimaryKey val date: Long,
+    val cardLast4: String,
+    val availableLimit: Double
 )

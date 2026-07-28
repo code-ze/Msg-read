@@ -92,15 +92,55 @@ class SmsParserTest {
         assertEquals("HOLLISTER CALIFORNIA", t.merchantRaw)
     }
 
-    @Test fun parsesCcSpendUsd() {
+    @Test fun parsesCcSpendUsdConvertedToOmr() {
         val body = "Card 420460******0444 used for USD 790.420 at Cars on Booking  on 27/07/2026 20:04:03. Available limit OMR 636.448."
         val t = SmsParser.parse(body, date)
         assertNotNull(t); t!!
         assertEquals(TxnType.DEBIT, t.type)
-        assertEquals(790.420, t.amount, 0.0001)
-        // USD amounts get currency tag appended
-        assertTrue(t.merchantRaw.contains("Cars on Booking"))
-        assertTrue(t.merchantRaw.contains("USD"))
+        // The amount must be rials, not the raw USD figure — counting 790 USD as 790 OMR
+        // overstated spending by ~2.5x.
+        assertEquals("USD", t.currency)
+        assertEquals(790.420, t.originalAmount, 0.0001)
+        assertTrue("USD should convert to roughly a third", t.amount in 250.0..350.0)
+        // Merchant names containing " on " must survive intact.
+        assertEquals("Cars on Booking", t.merchantRaw)
+        assertEquals(636.448, t.availableLimit, 0.0001)
+        assertEquals("0444", t.cardLast4)
+    }
+
+    @Test fun ccMerchantWithOnInNameIsNotTruncated() {
+        val body = "Card 420460******0444 used for OMR 5.000 at Cars on Booking  on 27/07/2026 20:04:03. Available limit OMR 100.000."
+        val t = SmsParser.parse(body, date)
+        assertNotNull(t); t!!
+        assertEquals("Cars on Booking", t.merchantRaw)
+        assertEquals(5.0, t.amount, 0.0001)
+    }
+
+    @Test fun parsesEnglishMobilePaymentSent() {
+        val body = "Dear Customer, You have sent OMR 4.000 to MD R######AMIA from your a/c " +
+            "0311XXXXXXXX0018 on 28/07/2026 14:14:49 using Mobile Payment services. " +
+            "Txn Id BMCT014813740311. Avl Bal OMR 10264.641."
+        val t = SmsParser.parse(body, date)
+        assertNotNull(t); t!!
+        assertEquals(TxnType.WALLET_OUT, t.type)
+        assertEquals(4.0, t.amount, 0.0001)
+        assertEquals("MD R######AMIA", t.merchantRaw)
+    }
+
+    @Test fun parsesCardPayment() {
+        val body = "Payment of OMR 200.000 has been credited on your card 420460******0444 on 28/07/2026 13:39:57"
+        val p = SmsParser.parseCardPayment(body, date)
+        assertNotNull(p); p!!
+        assertEquals(200.0, p.amount, 0.0001)
+        assertEquals("0444", p.cardLast4)
+    }
+
+    @Test fun parsesCardLimit() {
+        val body = "Card 420460******0444 used for OMR 33.000 at LC WAIKIKI  on 28/07/2026 12:56:00. Available limit OMR 895.448."
+        val l = SmsParser.parseCardLimit(body, date)
+        assertNotNull(l); l!!
+        assertEquals(895.448, l.availableLimit, 0.0001)
+        assertEquals("0444", l.cardLast4)
     }
 
     @Test fun ignoresCcPaymentCredited() {

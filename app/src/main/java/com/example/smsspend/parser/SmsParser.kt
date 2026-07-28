@@ -9,12 +9,31 @@ import kotlin.math.abs
  */
 data class ParsedTxn(
     val type: TxnType,
+    /** Always OMR — foreign amounts are converted so every total in the app is one currency. */
     val amount: Double,
     val merchantRaw: String,
     val date: Long,
     val key: String,
-    val body: String
-)
+    val body: String,
+    /** Currency the transaction was billed in ("OMR" for domestic). */
+    val currency: String = "OMR",
+    /** Amount in [currency]; 0 when the transaction was already in OMR. */
+    val originalAmount: Double = 0.0,
+    /** Last 4 digits of the credit card, when this came from a card SMS. */
+    val cardLast4: String = "",
+    /** Remaining credit (OMR) the card SMS reported, 0 when absent. */
+    val availableLimit: Double = 0.0
+) {
+    /** True when this was billed in a foreign currency and [amount] is a conversion. */
+    val isForeign: Boolean get() = currency != "OMR" && originalAmount > 0.0
+    val isCard: Boolean get() = cardLast4.isNotEmpty()
+}
+
+/** A payment that landed on a credit card, reducing what's owed. Not spending. */
+data class CardPaymentInfo(val cardLast4: String, val amount: Double, val date: Long)
+
+/** The remaining credit a card SMS reported, at the time it was sent. */
+data class CardLimitInfo(val cardLast4: String, val availableLimit: Double, val date: Long)
 
 enum class TxnType {
     DEBIT,       // card / direct debit  -> spending
@@ -65,10 +84,59 @@ object SmsParser {
     private val amountAfterOmr = Regex("OMR\\s*([0-9][0-9,]*(?:\\.[0-9]+)?)")
 
     // English credit card spend: "Card XXXX used for OMR/USD 139.500 at MERCHANT  on 28/07/2026 12:33:39. Available limit OMR 928.448."
+    // The merchant group is non-greedy but anchored by the date, so names containing " on "
+    // (e.g. "Cars on Booking") are captured whole rather than truncated at the first " on ".
     private val ccSpend = Regex(
-        """Card\s+[\d*]+\s+used\s+for\s+([A-Z]{3})\s+([0-9][0-9,]*(?:\.[0-9]+)?)\s+at\s+(.+?)\s+on\s+(\d{2}/\d{2}/\d{4}\s+\d{2}:\d{2}:\d{2})""",
+        """Card\s+([\d*]+)\s+used\s+for\s+([A-Z]{3})\s+([0-9][0-9,]*(?:\.[0-9]+)?)\s+at\s+(.+?)\s+on\s+(\d{2}/\d{2}/\d{4}\s+\d{2}:\d{2}:\d{2})""",
         RegexOption.IGNORE_CASE
     )
+    private val ccAvailableLimit = Regex(
+        """Available\s+limit\s+OMR\s*([0-9][0-9,]*(?:\.[0-9]+)?)""", RegexOption.IGNORE_CASE
+    )
+    // "Payment of OMR 200.000 has been credited on your card 420460******0444 on 28/07/2026 13:39:57"
+    private val ccPayment = Regex(
+        """Payment\s+of\s+OMR\s*([0-9][0-9,]*(?:\.[0-9]+)?)\s+has\s+been\s+credited\s+on\s+your\s+card\s+([\d*]+)""",
+        RegexOption.IGNORE_CASE
+    )
+
+    // English mobile payment: "You have sent OMR 4.000 to NAME from your a/c 0311... on 28/07/2026 14:14:49"
+    private val mobileSent = Regex(
+        """You\s+have\s+sent\s+OMR\s*([0-9][0-9,]*(?:\.[0-9]+)?)\s+to\s+(.+?)\s+from\s+your\s+a/c""",
+        RegexOption.IGNORE_CASE
+    )
+    private val mobileReceived = Regex(
+        """You\s+have\s+received\s+OMR\s*([0-9][0-9,]*(?:\.[0-9]+)?)\s+from\s+(.+?)\s+(?:to|in)\s+your\s+a/c""",
+        RegexOption.IGNORE_CASE
+    )
+    private val englishDateTime = Regex("""on\s+(\d{2}/\d{2}/\d{4}\s+\d{2}:\d{2}:\d{2})""", RegexOption.IGNORE_CASE)
+
+    /**
+     * Approximate OMR value of one unit of each foreign currency, used only as a *fallback*.
+     *
+     * The rial is pegged (1 OMR = 2.6008 USD), and the bank adds roughly a 2.5% cross-currency
+     * markup, so USD lands near 0.394. These are estimates: the exact charge is normally
+     * recovered from the drop in "Available limit" between two card SMS (see CardCharges),
+     * which reflects what the bank actually billed including fees.
+     */
+    private val fxToOmr = mapOf(
+        "OMR" to 1.0,
+        "USD" to 0.3942,
+        "AED" to 0.1073,
+        "SAR" to 0.1051,
+        "QAR" to 0.1083,
+        "BHD" to 1.0460,
+        "KWD" to 1.2800,
+        "EUR" to 0.4280,
+        "GBP" to 0.5000,
+        "INR" to 0.0046
+    )
+
+    /** Converts [amount] in [currency] to OMR using the fallback rate table. */
+    fun toOmr(amount: Double, currency: String): Double =
+        amount * (fxToOmr[currency.uppercase()] ?: 1.0)
+
+    /** True when a rate is known for [currency] (so a conversion is meaningful). */
+    fun knowsRate(currency: String): Boolean = fxToOmr.containsKey(currency.uppercase())
 
     private val debitCardMerchant = Regex("المباشر في (.+?) بتاريخ")
     private val sentTo = Regex("إلى (.+?) من حسابك")
@@ -90,6 +158,8 @@ object SmsParser {
     private val balanceArabic = Regex("رصيد[^0-9]{0,40}?([0-9][0-9,]*(?:\\.[0-9]+)?)\\s*OMR")
     private val balanceEnglishAfter = Regex("balance[^0-9]{0,20}?OMR\\s*([0-9][0-9,]*(?:\\.[0-9]+)?)", RegexOption.IGNORE_CASE)
     private val balanceEnglishBefore = Regex("balance[^0-9]{0,20}?([0-9][0-9,]*(?:\\.[0-9]+)?)\\s*OMR", RegexOption.IGNORE_CASE)
+    // Mobile-payment SMS report the account balance as "Avl Bal OMR 10264.641."
+    private val avlBal = Regex("Avl\\s*Bal(?:ance)?\\s*OMR\\s*([0-9][0-9,]*(?:\\.[0-9]+)?)", RegexOption.IGNORE_CASE)
 
     // Bidirectional/format control marks that appear in bank/MCD SMS and break regexes.
     private val bidiMarks = Regex("[\\u200E\\u200F\\u202A-\\u202E\\u2066-\\u2069\\u00AD]")
@@ -139,14 +209,51 @@ object SmsParser {
             body.contains("used for", ignoreCase = true) &&
                 body.contains("Available limit", ignoreCase = true) -> {
                 val m = ccSpend.find(body) ?: return null
-                val currency = m.groupValues[1].uppercase()
-                val amt = num(m.groupValues[2])
+                val last4 = m.groupValues[1].takeLast(4)
+                val currency = m.groupValues[2].uppercase()
+                val billed = num(m.groupValues[3])
+                if (billed <= 0) return null
+                val merchant = m.groupValues[4].trim()
+                val txnDate = parseDmyHms(m.groupValues[5])
+                val limit = ccAvailableLimit.find(body)?.groupValues?.get(1)?.let { num(it) } ?: 0.0
+                ParsedTxn(
+                    type = TxnType.DEBIT,
+                    // Foreign amounts are converted so "Spent" is always OMR. CardCharges later
+                    // replaces this estimate with the exact figure from the limit drop.
+                    amount = if (currency == "OMR") billed else toOmr(billed, currency),
+                    merchantRaw = merchant,
+                    date = if (txnDate > 0) txnDate else date,
+                    key = key,
+                    body = body,
+                    currency = currency,
+                    originalAmount = if (currency == "OMR") 0.0 else billed,
+                    cardLast4 = last4,
+                    availableLimit = limit
+                )
+            }
+
+            // 10. English mobile payment sent
+            body.contains("You have sent", ignoreCase = true) -> {
+                val m = mobileSent.find(body) ?: return null
+                val amt = num(m.groupValues[1])
                 if (amt <= 0) return null
-                val rawMerchant = m.groupValues[3].trim()
-                // Append currency tag for non-OMR so totals stay honest
-                val merchant = if (currency == "OMR") rawMerchant else "$rawMerchant ($currency)"
-                val txnDate = parseDmyHms(m.groupValues[4])
-                ParsedTxn(TxnType.DEBIT, amt, merchant, if (txnDate > 0) txnDate else date, key, body)
+                val txnDate = englishDateTime.find(body)?.groupValues?.get(1)?.let { parseDmyHms(it) } ?: 0L
+                ParsedTxn(
+                    TxnType.WALLET_OUT, amt, m.groupValues[2].trim(),
+                    if (txnDate > 0) txnDate else date, key, body
+                )
+            }
+
+            // 11. English mobile payment received
+            body.contains("You have received", ignoreCase = true) -> {
+                val m = mobileReceived.find(body) ?: return null
+                val amt = num(m.groupValues[1])
+                if (amt <= 0) return null
+                val txnDate = englishDateTime.find(body)?.groupValues?.get(1)?.let { parseDmyHms(it) } ?: 0L
+                ParsedTxn(
+                    TxnType.WALLET_IN, amt, m.groupValues[2].trim(),
+                    if (txnDate > 0) txnDate else date, key, body
+                )
             }
 
             // 7. IPO subscription (English)
@@ -230,15 +337,43 @@ object SmsParser {
     fun parseBalance(rawBody: String, date: Long): BalanceInfo? {
         val body = normalize(rawBody)
         if (!body.contains("OMR")) return null
-        // CC messages show "Available limit OMR X" — that's a credit limit, not the bank balance
+        // CC messages show "Available limit OMR X" — that's remaining credit on the card, not
+        // money in the bank. Feeding it into the balance series would corrupt every trend.
         if (body.contains("Available limit", ignoreCase = true)) return null
-        val m = balanceArabic.find(body)
+        val m = avlBal.find(body)
+            ?: balanceArabic.find(body)
             ?: balanceEnglishAfter.find(body)
             ?: balanceEnglishBefore.find(body)
             ?: return null
         val amt = num(m.groupValues[1])
         if (amt <= 0.0) return null
-        return BalanceInfo(amt, date)
+        // Mobile-payment SMS carry their own timestamp; prefer it over the delivery time.
+        val stamped = englishDateTime.find(body)?.groupValues?.get(1)?.let { parseDmyHms(it) } ?: 0L
+        return BalanceInfo(amt, if (stamped > 0) stamped else date)
+    }
+
+    /**
+     * A payment landing on the credit card. This is NOT spending (it's the checking account
+     * paying down the card), but it raises the available limit — so [CardCharges] needs it to
+     * reconstruct what a foreign transaction actually cost.
+     */
+    fun parseCardPayment(rawBody: String, date: Long): CardPaymentInfo? {
+        val body = normalize(rawBody)
+        val m = ccPayment.find(body) ?: return null
+        val amt = num(m.groupValues[1])
+        if (amt <= 0.0) return null
+        val stamped = englishDateTime.find(body)?.groupValues?.get(1)?.let { parseDmyHms(it) } ?: 0L
+        return CardPaymentInfo(m.groupValues[2].takeLast(4), amt, if (stamped > 0) stamped else date)
+    }
+
+    /** The remaining credit reported by a card spend SMS — drives the "owed on card" figure. */
+    fun parseCardLimit(rawBody: String, date: Long): CardLimitInfo? {
+        val body = normalize(rawBody)
+        val spend = ccSpend.find(body) ?: return null
+        val limit = ccAvailableLimit.find(body)?.groupValues?.get(1)?.let { num(it) } ?: return null
+        if (limit <= 0.0) return null
+        val stamped = parseDmyHms(spend.groupValues[5])
+        return CardLimitInfo(spend.groupValues[1].takeLast(4), limit, if (stamped > 0) stamped else date)
     }
 
     /** MCD IPO subscription-request confirmation — captures the application reference. */

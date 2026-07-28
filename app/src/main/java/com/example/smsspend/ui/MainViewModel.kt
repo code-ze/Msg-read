@@ -68,6 +68,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     val dailyLimit = MutableStateFlow(Prefs.getDailyLimit(app))
     val monthlyBudget = MutableStateFlow(Prefs.getMonthlyBudget(app))
     val bestStreak = MutableStateFlow(Prefs.getBestStreak(app))
+    val creditLimit = MutableStateFlow(Prefs.getCreditLimit(app))
     val categoryBudgets = MutableStateFlow(
         Categorizer.allCategories.associateWith { Prefs.getCategoryBudget(app, it) }
     )
@@ -127,6 +128,45 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             val cutoff = minOf(p.endExclusive, System.currentTimeMillis())
             pts.filter { it.date <= cutoff }.ifEmpty { pts }
         }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    // ---- credit card ----
+    /** Latest remaining-credit reading per card, scraped from card SMS. */
+    private val cardLimitRows: StateFlow<List<com.example.smsspend.data.CardLimitSnapshot>> =
+        repo.cardLimits().stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    private val cardPeaks: StateFlow<List<com.example.smsspend.data.CardPeak>> =
+        repo.cardPeaks().stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    /** Credit still available to spend, across all cards. */
+    val availableCredit: StateFlow<Double> =
+        cardLimitRows.map { rows -> rows.sumOf { it.availableLimit } }
+            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0.0)
+
+    /**
+     * Total credit limit: the user's figure when set, otherwise the highest headroom ever
+     * reported — which is exactly right if the card has ever been paid off in full.
+     */
+    val effectiveCreditLimit: StateFlow<Double> =
+        combine(creditLimit, cardPeaks) { manual, peaks ->
+            if (manual > 0.0) manual else peaks.sumOf { it.peak }
+        }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0.0)
+
+    /** True when the limit above is a guess, so the UI can say so. */
+    val creditLimitInferred: StateFlow<Boolean> =
+        combine(creditLimit, cardPeaks) { manual, peaks ->
+            manual <= 0.0 && peaks.isNotEmpty()
+        }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
+
+    /** Outstanding debt on the card = total limit − remaining credit. */
+    val cardOwed: StateFlow<Double> =
+        combine(effectiveCreditLimit, availableCredit) { limit, avail ->
+            if (limit <= 0.0) 0.0 else (limit - avail).coerceAtLeast(0.0)
+        }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0.0)
+
+    /** What's actually yours: money in the bank minus what the card will claim back. */
+    val netWorth: StateFlow<Double> =
+        combine(balance, cardOwed) { bal, owed -> bal - owed }
+            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0.0)
 
     private val periodTxns: StateFlow<List<TxnEntity>> =
         period.flatMapLatest { p -> repo.txnsInPeriod(p.start, p.endExclusive) }
@@ -412,6 +452,10 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     fun setMonthlyBudget(v: Double) {
         Prefs.setMonthlyBudget(getApplication<Application>(), v)
         monthlyBudget.value = v
+    }
+    fun setCreditLimit(v: Double) {
+        Prefs.setCreditLimit(getApplication<Application>(), v)
+        creditLimit.value = v
     }
     fun setCategoryBudget(category: String, v: Double) {
         Prefs.setCategoryBudget(getApplication<Application>(), category, v)

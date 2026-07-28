@@ -14,9 +14,10 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         Holding::class,
         IpoApplication::class,
         BalanceSnapshot::class,
-        CategoryDef::class
+        CategoryDef::class,
+        CardLimitSnapshot::class
     ],
-    version = 4,
+    version = 5,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -26,6 +27,7 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun ipoApplicationDao(): IpoApplicationDao
     abstract fun balanceDao(): BalanceDao
     abstract fun categoryDao(): CategoryDao
+    abstract fun cardLimitDao(): CardLimitDao
 
     companion object {
         @Volatile private var INSTANCE: AppDatabase? = null
@@ -61,6 +63,23 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        /**
+         * Credit-card support (v5): remembers how much credit is left on each card, and records
+         * the currency a purchase was billed in so foreign amounts are visibly conversions.
+         * Purely additive — no existing data is touched.
+         */
+        private val MIGRATION_4_5 = object : Migration(4, 5) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    "CREATE TABLE IF NOT EXISTS `card_limit_snapshot` " +
+                        "(`date` INTEGER NOT NULL, `cardLast4` TEXT NOT NULL, " +
+                        "`availableLimit` REAL NOT NULL, PRIMARY KEY(`date`))"
+                )
+                db.execSQL("ALTER TABLE `txn` ADD COLUMN `currency` TEXT NOT NULL DEFAULT 'OMR'")
+                db.execSQL("ALTER TABLE `txn` ADD COLUMN `originalAmount` REAL NOT NULL DEFAULT 0")
+            }
+        }
+
         fun get(context: Context): AppDatabase =
             INSTANCE ?: synchronized(this) {
                 INSTANCE ?: Room.databaseBuilder(
@@ -68,7 +87,7 @@ abstract class AppDatabase : RoomDatabase() {
                     AppDatabase::class.java,
                     "smsspend.db"
                 )
-                    .addMigrations(MIGRATION_2_3, MIGRATION_3_4)
+                    .addMigrations(MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5)
                     .fallbackToDestructiveMigration()
                     .build()
                     .also { INSTANCE = it }

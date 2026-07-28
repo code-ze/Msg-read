@@ -11,10 +11,12 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Text
@@ -25,6 +27,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -53,6 +56,11 @@ fun DashboardScreen(vm: MainViewModel) {
     val safeToSpend by vm.safeToSpend.collectAsStateWithLifecycle()
     val dailyLimit by vm.dailyLimit.collectAsStateWithLifecycle()
     val todaySpend by vm.todaySpend.collectAsStateWithLifecycle()
+    val cardOwed by vm.cardOwed.collectAsStateWithLifecycle()
+    val availableCredit by vm.availableCredit.collectAsStateWithLifecycle()
+    val creditLimitTotal by vm.effectiveCreditLimit.collectAsStateWithLifecycle()
+    val creditLimitInferred by vm.creditLimitInferred.collectAsStateWithLifecycle()
+    val netWorth by vm.netWorth.collectAsStateWithLifecycle()
 
     val isCurrent = period.endExclusive > System.currentTimeMillis()
     var selectedPoint by remember { mutableStateOf<BalanceSnapshot?>(null) }
@@ -76,11 +84,25 @@ fun DashboardScreen(vm: MainViewModel) {
                     isCurrent = isCurrent,
                     periodEndLabel = Format.day(minOf(period.endExclusive, System.currentTimeMillis())),
                     points = balanceSeries,
+                    cardOwed = if (isCurrent) cardOwed else 0.0,
+                    netWorth = netWorth,
                     onTapPoint = { p ->
                         selectedPoint = p
                         vm.loadTxnsAround(p.date) { nearbyTxns = it }
                     }
                 )
+            }
+
+            if (isCurrent && creditLimitTotal > 0) {
+                item {
+                    CreditCardCard(
+                        owed = cardOwed,
+                        available = availableCredit,
+                        limit = creditLimitTotal,
+                        inferred = creditLimitInferred,
+                        onSettings = { vm.navigate(Screen.Settings) }
+                    )
+                }
             }
 
             item {
@@ -182,6 +204,8 @@ private fun HeroCard(
     isCurrent: Boolean,
     periodEndLabel: String,
     points: List<BalanceSnapshot>,
+    cardOwed: Double,
+    netWorth: Double,
     onTapPoint: (BalanceSnapshot) -> Unit
 ) {
     Card(
@@ -207,6 +231,14 @@ private fun HeroCard(
                     modifier = Modifier.padding(bottom = 6.dp)
                 )
             }
+            if (cardOwed > 0) {
+                Text(
+                    "− ${Format.omr2(cardOwed)} owed on card  ·  ${Format.omr2(netWorth)} OMR really yours",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.error,
+                    modifier = Modifier.padding(top = 4.dp)
+                )
+            }
             if (isCurrent && safeToSpend > 0) {
                 Text(
                     "Safe to spend ≈ ${Format.omr2(safeToSpend)} OMR/day until next salary",
@@ -227,6 +259,79 @@ private fun HeroCard(
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.padding(top = 6.dp)
+                )
+            }
+        }
+    }
+}
+
+/**
+ * The credit card as its own account: what's owed, what's left to spend, and how much of the
+ * limit is used. Owed is derived from the "Available limit" the bank puts in every card SMS,
+ * so it needs no manual entry — only the total limit is worth confirming in Settings.
+ */
+@Composable
+private fun CreditCardCard(
+    owed: Double,
+    available: Double,
+    limit: Double,
+    inferred: Boolean,
+    onSettings: () -> Unit
+) {
+    val used = if (limit > 0) (owed / limit).coerceIn(0.0, 1.0).toFloat() else 0f
+    val pct = (used * 100).roundToInt()
+    val heavy = used >= 0.8f
+    val barColor = when {
+        heavy -> MaterialTheme.colorScheme.error
+        used >= 0.5f -> Color(0xFFE0A45B)
+        else -> MaterialTheme.colorScheme.primary
+    }
+
+    Card(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp)) {
+        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Text("Credit card", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
+
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+                Column(Modifier.weight(1f)) {
+                    Text("Owed", style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text(
+                        "${Format.omr2(owed)} OMR",
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.error
+                    )
+                }
+                Column(Modifier.weight(1f)) {
+                    Text("Left to spend", style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text(
+                        "${Format.omr2(available)} OMR",
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                }
+            }
+
+            LinearProgressIndicator(
+                progress = { used },
+                modifier = Modifier.fillMaxWidth().height(8.dp).clip(RoundedCornerShape(4.dp)),
+                color = barColor,
+                trackColor = MaterialTheme.colorScheme.surfaceVariant
+            )
+            Text(
+                "$pct% of ${Format.omr2(limit)} OMR limit used",
+                style = MaterialTheme.typography.labelSmall,
+                color = if (heavy) MaterialTheme.colorScheme.error
+                    else MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            if (inferred) {
+                Text(
+                    "Limit guessed from your highest available credit — tap to set the real one.",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.clickable(onClick = onSettings)
                 )
             }
         }

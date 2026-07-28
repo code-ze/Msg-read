@@ -57,6 +57,14 @@ object Prefs {
     fun getBestStreak(c: Context): Int = sp(c).getInt(KEY_BEST_STREAK, 0)
     fun setBestStreak(c: Context, v: Int) = sp(c).edit().putInt(KEY_BEST_STREAK, v).apply()
 
+    /**
+     * Total credit limit on the card; 0 = infer it from the highest "Available limit" ever seen
+     * (which is exact whenever the card has been at a zero balance at some point).
+     */
+    private const val KEY_CREDIT_LIMIT = "credit_limit"
+    fun getCreditLimit(c: Context): Double = sp(c).getFloat(KEY_CREDIT_LIMIT, 0f).toDouble()
+    fun setCreditLimit(c: Context, v: Double) = sp(c).edit().putFloat(KEY_CREDIT_LIMIT, v.toFloat()).apply()
+
     fun getCategoryBudget(c: Context, category: String): Double =
         sp(c).getFloat("budget_${category.replace(' ', '_')}", 0f).toDouble()
     fun setCategoryBudget(c: Context, category: String, v: Double) =

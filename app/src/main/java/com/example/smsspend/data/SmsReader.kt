@@ -2,8 +2,11 @@ package com.example.smsspend.data
 
 import android.content.Context
 import android.provider.Telephony
+import com.example.smsspend.model.CardCharges
 import com.example.smsspend.parser.AgmInfo
 import com.example.smsspend.parser.BalanceInfo
+import com.example.smsspend.parser.CardLimitInfo
+import com.example.smsspend.parser.CardPaymentInfo
 import com.example.smsspend.parser.IpoAppInfo
 import com.example.smsspend.parser.ParsedTxn
 import com.example.smsspend.parser.SmsParser
@@ -13,7 +16,9 @@ data class SmsScan(
     val txns: List<ParsedTxn>,
     val agms: List<AgmInfo>,
     val ipoApps: List<IpoAppInfo>,
-    val balances: List<BalanceInfo>
+    val balances: List<BalanceInfo>,
+    val cardPayments: List<CardPaymentInfo> = emptyList(),
+    val cardLimits: List<CardLimitInfo> = emptyList()
 )
 
 /** Reads the SMS inbox (READ_SMS) and extracts transactions + investment info. On-device only. */
@@ -24,6 +29,8 @@ object SmsReader {
         val agms = ArrayList<AgmInfo>()
         val ipoApps = ArrayList<IpoAppInfo>()
         val balances = ArrayList<BalanceInfo>()
+        val cardPayments = ArrayList<CardPaymentInfo>()
+        val cardLimits = ArrayList<CardLimitInfo>()
 
         val uri = Telephony.Sms.Inbox.CONTENT_URI
         val cols = arrayOf(Telephony.Sms.BODY, Telephony.Sms.DATE)
@@ -41,8 +48,15 @@ object SmsReader {
                 SmsParser.parseAgm(body, date)?.let { agms.add(it) }
                 SmsParser.parseIpoApplication(body, date)?.let { ipoApps.add(it) }
                 SmsParser.parseBalance(body, date)?.let { balances.add(it) }
+                SmsParser.parseCardPayment(body, date)?.let { cardPayments.add(it) }
+                SmsParser.parseCardLimit(body, date)?.let { cardLimits.add(it) }
             }
         }
-        return SmsScan(txns, agms, ipoApps, balances)
+
+        // Card SMS only make sense as a sequence: drop re-sent duplicates and turn foreign
+        // amounts into the exact rials the bank took (see CardCharges).
+        val settled = CardCharges.process(txns, cardPayments)
+
+        return SmsScan(settled, agms, ipoApps, balances, cardPayments, cardLimits)
     }
 }
