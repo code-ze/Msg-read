@@ -38,4 +38,10 @@ class BalanceParserTest {
     @Test fun noBalanceWhenAbsent() {
         assertNull(SmsParser.parseBalance("لقد استلمت OMR 5.000 من AHMED في حسابك", 5L))
     }
+
+    @Test fun ccAvailableLimitIsNotBalance() {
+        // "Available limit OMR X" on a credit card SMS must NOT be recorded as account balance
+        val body = "Card 420460******0444 used for OMR 33.000 at LC WAIKIKI  on 28/07/2026 12:56:00. Available limit OMR 895.448."
+        assertNull(SmsParser.parseBalance(body, 5L))
+    }
 }

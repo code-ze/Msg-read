@@ -35,6 +35,7 @@ enum class TxnType {
  * Documented message patterns (do NOT change a regex without adding a matching test —
  * a UI refactor must never silently break SMS reading):
  *
+ *  Arabic account messages:
  *  1. Direct-debit card    "بطاقة الخصم المباشر ... <amt> OMR ... المباشر في <merchant> بتاريخ"
  *  2. Generic debit        "تم خصم OMR <amt> من حسابك ..."        (best-effort merchant)
  *  3. Wallet sent          "لقد قمت بإرسال ... OMR <amt> ... إلى <merchant> من حسابك"
@@ -42,6 +43,16 @@ enum class TxnType {
  *  5. Dividend (DIV)       "تم إيداع <amt> OMR ... DIV payment-<merchant> بتاريخ"
  *  6. Generic deposit      "تم إيداع <amt> OMR في حسابك ..."
  *  7. IPO subscription     "... debited for amount of OMR <amt> as subscription of IPO <merchant> for Investor Account ..."
+ *
+ *  English credit card messages:
+ *  8. CC spend (OMR)       "Card XXXX used for OMR <amt> at <merchant> on DD/MM/YYYY HH:MM:SS. Available limit OMR <limit>."
+ *  9. CC spend (foreign)   "Card XXXX used for USD <amt> at <merchant> on DD/MM/YYYY HH:MM:SS. Available limit OMR <limit>."
+ *
+ *  Ignored:
+ *  - "Payment of OMR X has been credited on your card XXXX"  (CC receiving payment — skip)
+ *  - "Your a/c has been debited for OMR X as payment towards bank muscat Credit Card" (skip — CC spending already tracked per-transaction)
+ *  - "... was reversed"  (reversal — skipped; both the original and reversal cancel out)
+ *  - OTP messages
  *
  * Ordering matters: more specific patterns (DIV before generic deposit, IPO before
  * generic debit wording) are checked first.
@@ -52,6 +63,12 @@ object SmsParser {
     private val amountBeforeOmr = Regex("([0-9][0-9,]*(?:\\.[0-9]+)?)\\s*OMR")
     // amount written as "OMR 624.000"
     private val amountAfterOmr = Regex("OMR\\s*([0-9][0-9,]*(?:\\.[0-9]+)?)")
+
+    // English credit card spend: "Card XXXX used for OMR/USD 139.500 at MERCHANT  on 28/07/2026 12:33:39. Available limit OMR 928.448."
+    private val ccSpend = Regex(
+        """Card\s+[\d*]+\s+used\s+for\s+([A-Z]{3})\s+([0-9][0-9,]*(?:\.[0-9]+)?)\s+at\s+(.+?)\s+on\s+(\d{2}/\d{2}/\d{4}\s+\d{2}:\d{2}:\d{2})""",
+        RegexOption.IGNORE_CASE
+    )
 
     private val debitCardMerchant = Regex("المباشر في (.+?) بتاريخ")
     private val sentTo = Regex("إلى (.+?) من حسابك")
@@ -86,7 +103,8 @@ object SmsParser {
         body.contains("OMR") ||
             body.contains("أرباح نقدية") ||
             body.contains("طلب الإكتتاب") ||
-            body.contains("Annual General Meeting", ignoreCase = true)
+            body.contains("Annual General Meeting", ignoreCase = true) ||
+            body.contains("used for", ignoreCase = true)
 
     private fun num(s: String): Double = s.replace(",", "").toDoubleOrNull() ?: 0.0
 
@@ -105,6 +123,32 @@ object SmsParser {
         val key = stableKey(body, date)
 
         return when {
+            // Skip: CC payment credited to card (not spending, just account transfer)
+            body.contains("has been credited on your card", ignoreCase = true) -> null
+
+            // Skip: account debited as CC payment (CC spending already tracked per-item)
+            body.contains("as payment towards bank muscat Credit Card", ignoreCase = true) -> null
+
+            // Skip: reversed transactions (both legs cancel; original usually already recorded)
+            body.contains("was reversed", ignoreCase = true) -> null
+
+            // Skip: OTP messages (duplicate of the matching CC spend SMS)
+            body.contains("One Time Password", ignoreCase = true) -> null
+
+            // 8/9. English CC spend: "Card XXXX used for OMR/USD X.XXX at MERCHANT on DATE"
+            body.contains("used for", ignoreCase = true) &&
+                body.contains("Available limit", ignoreCase = true) -> {
+                val m = ccSpend.find(body) ?: return null
+                val currency = m.groupValues[1].uppercase()
+                val amt = num(m.groupValues[2])
+                if (amt <= 0) return null
+                val rawMerchant = m.groupValues[3].trim()
+                // Append currency tag for non-OMR so totals stay honest
+                val merchant = if (currency == "OMR") rawMerchant else "$rawMerchant ($currency)"
+                val txnDate = parseDmyHms(m.groupValues[4])
+                ParsedTxn(TxnType.DEBIT, amt, merchant, if (txnDate > 0) txnDate else date, key, body)
+            }
+
             // 7. IPO subscription (English)
             body.contains("subscription of IPO", ignoreCase = true) -> {
                 val amt = firstAfterOmr(body) ?: firstBeforeOmr(body) ?: return null
@@ -186,6 +230,8 @@ object SmsParser {
     fun parseBalance(rawBody: String, date: Long): BalanceInfo? {
         val body = normalize(rawBody)
         if (!body.contains("OMR")) return null
+        // CC messages show "Available limit OMR X" — that's a credit limit, not the bank balance
+        if (body.contains("Available limit", ignoreCase = true)) return null
         val m = balanceArabic.find(body)
             ?: balanceEnglishAfter.find(body)
             ?: balanceEnglishBefore.find(body)
@@ -208,6 +254,20 @@ object SmsParser {
         val p = s.split("/")
         java.util.Calendar.getInstance().apply {
             clear(); set(p[2].toInt(), p[1].toInt() - 1, p[0].toInt(), 12, 0, 0)
+        }.timeInMillis
+    } catch (e: Exception) { 0L }
+
+    /** Parses a "dd/MM/yyyy HH:mm:ss" timestamp (used in CC spend SMS) to epoch millis, or 0. */
+    private fun parseDmyHms(s: String): Long = try {
+        val clean = s.trim()
+        val datePart = clean.substringBefore(" ")
+        val timePart = clean.substringAfter(" ")
+        val d = datePart.split("/")
+        val t = timePart.split(":")
+        java.util.Calendar.getInstance().apply {
+            clear()
+            set(d[2].toInt(), d[1].toInt() - 1, d[0].toInt(),
+                t[0].toInt(), t[1].toInt(), t[2].toInt())
         }.timeInMillis
     } catch (e: Exception) { 0L }
 }
