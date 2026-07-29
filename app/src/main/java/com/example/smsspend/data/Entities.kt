@@ -27,10 +27,23 @@ data class TxnEntity(
      * the rial figure is a conversion and [originalAmount] holds what the merchant charged.
      */
     @ColumnInfo(defaultValue = "'OMR'") val currency: String = "OMR",
-    @ColumnInfo(defaultValue = "0") val originalAmount: Double = 0.0
+    @ColumnInfo(defaultValue = "0") val originalAmount: Double = 0.0,
+    /**
+     * Added by the user rather than read from an SMS (v6) — refunds and cash spends the bank
+     * never messaged about.
+     */
+    @ColumnInfo(defaultValue = "0") val manual: Boolean = false,
+    /**
+     * Soft delete (v6). The row stays so a re-import can't resurrect it: the SMS is still in the
+     * inbox and its key would be inserted again. Every query filters these out.
+     */
+    @ColumnInfo(defaultValue = "0") val hidden: Boolean = false
 ) {
     /** True when [amount] is a converted figure rather than the amount as billed. */
     val isForeign: Boolean get() = currency != "OMR" && originalAmount > 0.0
+
+    /** Money coming back: a refund or reversal, stored as a negative spend. */
+    val isRefund: Boolean get() = amount < 0.0
 }
 
 /**

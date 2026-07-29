@@ -153,6 +153,49 @@ class Repository(private val appContext: Context) {
         txnDao.count() - before
     }
 
+    // ---- manual entries & edits ----
+
+    /**
+     * Records a transaction the bank never messaged about — a cash spend, or a refund that only
+     * shows up in the card statement. A refund is stored as a negative [amount] so it nets out of
+     * every total, category and merchant figure without any special-casing downstream.
+     */
+    suspend fun addManualTxn(
+        amount: Double,
+        merchant: String,
+        category: String,
+        subcategory: String,
+        date: Long,
+        type: TxnType
+    ): Unit = withContext(Dispatchers.IO) {
+        val clean = Categorizer.cleanMerchant(merchant).ifBlank { merchant.trim() }
+        txnDao.upsert(
+            TxnEntity(
+                key = "manual-" + java.util.UUID.randomUUID(),
+                type = type.name,
+                amount = amount,
+                merchantRaw = merchant.trim(),
+                merchantClean = clean,
+                date = date,
+                category = category,
+                subcategory = subcategory,
+                body = "",
+                manual = true
+            )
+        )
+    }
+
+    /**
+     * Saves an edit. Works for imported rows too: inserts use IGNORE, so a re-import will not
+     * overwrite what the user corrected here.
+     */
+    suspend fun updateTxn(txn: TxnEntity): Unit = withContext(Dispatchers.IO) {
+        txnDao.upsert(txn)
+    }
+
+    suspend fun hideTxn(key: String): Unit = withContext(Dispatchers.IO) { txnDao.hide(key) }
+    suspend fun unhideTxn(key: String): Unit = withContext(Dispatchers.IO) { txnDao.unhide(key) }
+
     /**
      * Learns a category + sub-category for a merchant and retroactively reassigns every
      * transaction from that merchant — so tagging one TALABAT (or splitting a NAMA bill into

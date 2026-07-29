@@ -153,9 +153,22 @@ class SmsParserTest {
         assertEquals(null, SmsParser.parse(body, date))
     }
 
-    @Test fun ignoresCcReversal() {
+    @Test fun reversalBecomesNegativeSpend() {
         val body = "your card 420460******0444 transaction for USD 1.000 at GOOGLE*ANDROID TEMP on 27/07/2026 19:40:35 was reversed"
-        assertEquals(null, SmsParser.parse(body, date))
+        val t = SmsParser.parse(body, date)
+        assertNotNull(t); t!!
+        // Recorded as money coming back so it cancels the original charge out of the totals.
+        assertTrue("a reversal must be negative", t.amount < 0.0)
+        assertEquals("GOOGLE*ANDROID TEMP", t.merchantRaw)
+        assertEquals("USD", t.currency)
+    }
+
+    @Test fun reversalAlsoReadsAsACardCredit() {
+        val body = "your card 420460******0444 transaction for USD 1.000 at GOOGLE*ANDROID TEMP on 27/07/2026 19:40:35 was reversed"
+        val c = SmsParser.parseCardReversal(body, date)
+        assertNotNull(c); c!!
+        assertEquals("0444", c.cardLast4)
+        assertTrue("credit is a positive OMR figure", c.amount > 0.0 && c.amount < 1.0)
     }
 
     @Test fun ignoresOtp() {

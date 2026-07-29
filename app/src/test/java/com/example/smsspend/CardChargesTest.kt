@@ -34,6 +34,30 @@ class CardChargesTest {
         assertEquals("USD", b.currency)
     }
 
+    /**
+     * With the reversal counted, the derivation matches the figure the bank's own card statement
+     * shows for this purchase (311.950) rather than falling 0.392 short.
+     */
+    @Test fun reversalBetweenChargesIsCreditedBack() {
+        val reversalSms = "your card 420460******0444 transaction for USD 1.000 at GOOGLE*ANDROID TEMP on 27/07/2026 19:40:35 was reversed"
+        val credit = SmsParser.parseCardReversal(reversalSms, 2)!!
+
+        val txns = listOf(parse(google, 1), parse(tmdone, 2), parse(booking, 3))
+        val out = CardCharges.process(txns, listOf(credit))
+
+        val b = out.first { it.merchantRaw == "Cars on Booking" && it.amount > 0 }
+        assertEquals(311.950, b.amount, 0.01)
+    }
+
+    @Test fun reversalCancelsTheOriginalChargeOut() {
+        val reversalSms = "your card 420460******0444 transaction for USD 1.000 at GOOGLE*ANDROID TEMP on 27/07/2026 19:40:35 was reversed"
+        val txns = listOf(parse(google, 1), parse(reversalSms, 2))
+        val out = CardCharges.process(txns, emptyList())
+
+        val net = out.filter { it.merchantRaw == "GOOGLE*ANDROID TEMP" }.sumOf { it.amount }
+        assertEquals("charge and reversal must net to zero", 0.0, net, 0.0001)
+    }
+
     @Test fun domesticChargesAreLeftAlone() {
         val txns = listOf(parse(google, 1), parse(tmdone, 2), parse(booking, 3))
         val out = CardCharges.process(txns, emptyList())

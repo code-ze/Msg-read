@@ -480,6 +480,53 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
+    // ---- manual entries & edits ----
+
+    /**
+     * Adds a transaction by hand. [amount] is negative for a refund, which nets it out of
+     * spending, the merchant's total and its category.
+     */
+    fun addManualTxn(
+        amount: Double,
+        merchant: String,
+        category: String,
+        subcategory: String = "",
+        date: Long = System.currentTimeMillis(),
+        type: com.example.smsspend.parser.TxnType = com.example.smsspend.parser.TxnType.DEBIT
+    ) {
+        viewModelScope.launch {
+            repo.addManualTxn(amount, merchant, category, subcategory, date, type)
+            importStatus.value = if (amount < 0) "Refund added" else "Transaction added"
+        }
+    }
+
+    fun updateTxn(txn: TxnEntity) {
+        viewModelScope.launch {
+            repo.updateTxn(txn)
+            importStatus.value = "Saved"
+        }
+    }
+
+    /** Soft-deletes so the next SMS import can't bring the row back. */
+    fun deleteTxn(txn: TxnEntity) {
+        viewModelScope.launch {
+            repo.hideTxn(txn.key)
+            lastDeleted.value = txn
+            importStatus.value = "Deleted"
+        }
+    }
+
+    /** The most recent deletion, so the UI can offer an undo. */
+    val lastDeleted = MutableStateFlow<TxnEntity?>(null)
+
+    fun undoDelete() {
+        val t = lastDeleted.value ?: return
+        viewModelScope.launch {
+            repo.unhideTxn(t.key)
+            lastDeleted.value = null
+        }
+    }
+
     fun setMerchantCategory(merchant: String, category: String, subcategory: String = "") {
         viewModelScope.launch { repo.setMerchantCategory(merchant, category, subcategory) }
     }
@@ -530,7 +577,9 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         }
         val bars = t.byCategory.take(4).joinToString("\n") { line ->
             val pct = if (t.spent > 0) (line.total / t.spent * 100).toInt() else 0
-            "${line.category}  $pct%  ${"█".repeat((pct + 5) / 10)}"
+            // A refund can push a category negative; repeat() would throw on a negative count.
+            val blocks = ((pct + 5) / 10).coerceIn(0, 10)
+            "${line.category}  $pct%  ${"█".repeat(blocks)}"
         }
         val breakdown = (summary + (if (bars.isNotBlank()) "\n$bars" else ""))
             .ifBlank { "No spending yet" }

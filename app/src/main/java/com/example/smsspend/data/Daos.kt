@@ -23,13 +23,13 @@ interface TxnDao {
     @Insert(onConflict = OnConflictStrategy.IGNORE)
     suspend fun insertAll(items: List<TxnEntity>): List<Long>
 
-    @Query("SELECT * FROM txn WHERE date >= :start AND date < :end ORDER BY date DESC")
+    @Query("SELECT * FROM txn WHERE date >= :start AND date < :end AND hidden = 0 ORDER BY date DESC")
     fun inPeriod(start: Long, end: Long): Flow<List<TxnEntity>>
 
-    @Query("SELECT * FROM txn WHERE date >= :start AND date < :end AND category = :category ORDER BY date DESC")
+    @Query("SELECT * FROM txn WHERE date >= :start AND date < :end AND category = :category AND hidden = 0 ORDER BY date DESC")
     fun inPeriodForCategory(start: Long, end: Long, category: String): Flow<List<TxnEntity>>
 
-    @Query("SELECT * FROM txn WHERE merchantClean = :merchant ORDER BY date DESC")
+    @Query("SELECT * FROM txn WHERE merchantClean = :merchant AND hidden = 0 ORDER BY date DESC")
     fun forMerchant(merchant: String): Flow<List<TxnEntity>>
 
     @Query("UPDATE txn SET category = :category, subcategory = :subcategory WHERE merchantClean = :merchant")
@@ -38,29 +38,29 @@ interface TxnDao {
     /** Sub-category split within one category for a period (e.g. Utilities → Electricity/Water). */
     @Query(
         "SELECT subcategory, SUM(amount) AS total, COUNT(*) AS count FROM txn " +
-            "WHERE date >= :start AND date < :end AND category = :category " +
+            "WHERE date >= :start AND date < :end AND category = :category AND hidden = 0 " +
             "GROUP BY subcategory ORDER BY total DESC"
     )
     fun subcategoriesInPeriod(start: Long, end: Long, category: String): Flow<List<SubcategorySum>>
 
-    @Query("SELECT merchantClean, SUM(amount) AS total, COUNT(*) AS count FROM txn WHERE type = 'DIVIDEND' GROUP BY merchantClean ORDER BY total DESC")
+    @Query("SELECT merchantClean, SUM(amount) AS total, COUNT(*) AS count FROM txn WHERE type = 'DIVIDEND' AND hidden = 0 GROUP BY merchantClean ORDER BY total DESC")
     fun dividendsByCompany(): Flow<List<MerchantSum>>
 
-    @Query("SELECT * FROM txn WHERE type = 'IPO' ORDER BY date DESC")
+    @Query("SELECT * FROM txn WHERE type = 'IPO' AND hidden = 0 ORDER BY date DESC")
     fun ipoTxns(): Flow<List<TxnEntity>>
 
-    @Query("SELECT * FROM txn WHERE type IN ('DEPOSIT', 'WALLET_IN') ORDER BY date")
+    @Query("SELECT * FROM txn WHERE type IN ('DEPOSIT', 'WALLET_IN') AND hidden = 0 ORDER BY date")
     fun incomeTxns(): Flow<List<TxnEntity>>
 
     /** Bank deposits only (salary lands as a deposit, not a wallet transfer). */
-    @Query("SELECT * FROM txn WHERE type = 'DEPOSIT' ORDER BY date")
+    @Query("SELECT * FROM txn WHERE type = 'DEPOSIT' AND hidden = 0 ORDER BY date")
     fun depositTxns(): Flow<List<TxnEntity>>
 
     /** Per-merchant spend within a period (granular "where the money goes"). */
     @Query(
         "SELECT merchantClean, SUM(amount) AS total, COUNT(*) AS count FROM txn " +
             "WHERE date >= :start AND date < :end AND type IN ('DEBIT', 'WALLET_OUT') " +
-            "AND category NOT IN ('Income', 'Dividends') " +
+            "AND category NOT IN ('Income', 'Dividends') AND hidden = 0 " +
             "GROUP BY merchantClean ORDER BY total DESC"
     )
     fun merchantsInPeriod(start: Long, end: Long): Flow<List<MerchantSum>>
@@ -69,19 +69,37 @@ interface TxnDao {
     @Query(
         "SELECT category, SUM(amount) AS total, COUNT(*) AS count FROM txn " +
             "WHERE date >= :start AND type IN ('DEBIT', 'WALLET_OUT') " +
-            "AND category NOT IN ('Income', 'Dividends') " +
+            "AND category NOT IN ('Income', 'Dividends') AND hidden = 0 " +
             "GROUP BY category"
     )
     fun categorySpendSince(start: Long): Flow<List<CategorySum>>
 
     /** Transactions within a time window, biggest first — for inspecting a balance-graph dip. */
-    @Query("SELECT * FROM txn WHERE date >= :start AND date < :end ORDER BY ABS(amount) DESC")
+    @Query("SELECT * FROM txn WHERE date >= :start AND date < :end AND hidden = 0 ORDER BY ABS(amount) DESC")
     suspend fun between(start: Long, end: Long): List<TxnEntity>
 
-    @Query("SELECT * FROM txn ORDER BY date DESC")
+    @Query("SELECT * FROM txn WHERE hidden = 0 ORDER BY date DESC")
     suspend fun allForExport(): List<TxnEntity>
 
-    @Query("SELECT COUNT(*) FROM txn")
+    /** Adds a user-created row, replacing one with the same key so re-saving an edit works. */
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun upsert(item: TxnEntity)
+
+    @Query("SELECT * FROM txn WHERE `key` = :key LIMIT 1")
+    suspend fun byKey(key: String): TxnEntity?
+
+    /**
+     * Soft delete. The row is kept because the originating SMS is still in the inbox — a hard
+     * delete would simply be undone by the next import.
+     */
+    @Query("UPDATE txn SET hidden = 1 WHERE `key` = :key")
+    suspend fun hide(key: String)
+
+    @Query("UPDATE txn SET hidden = 0 WHERE `key` = :key")
+    suspend fun unhide(key: String)
+
+    /** Counts only visible rows, so "imported N new" doesn't include resurrected hidden ones. */
+    @Query("SELECT COUNT(*) FROM txn WHERE hidden = 0")
     suspend fun count(): Int
 
     @Query("DELETE FROM txn")

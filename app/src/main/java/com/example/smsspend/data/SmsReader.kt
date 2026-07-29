@@ -49,6 +49,9 @@ object SmsReader {
                 SmsParser.parseIpoApplication(body, date)?.let { ipoApps.add(it) }
                 SmsParser.parseBalance(body, date)?.let { balances.add(it) }
                 SmsParser.parseCardPayment(body, date)?.let { cardPayments.add(it) }
+                // A reversal credits the card just like a payment does, so the limit chain has
+                // to know about it or the next foreign charge comes out too small.
+                SmsParser.parseCardReversal(body, date)?.let { cardPayments.add(it) }
                 SmsParser.parseCardLimit(body, date)?.let { cardLimits.add(it) }
             }
         }

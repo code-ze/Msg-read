@@ -112,18 +112,27 @@ fun TxnRow(txn: com.example.smsspend.data.TxnEntity, onClick: () -> Unit) {
                 maxLines = 1
             )
         }
+        // A refund is stored as a negative spend; show it as money coming back rather than
+        // letting the minus sign collide with the outgoing "−" prefix.
+        val credit = positive || txn.isRefund
         Column(horizontalAlignment = Alignment.End) {
             Text(
-                Format.omrSigned(txn.amount, positive),
+                Format.omrSigned(kotlin.math.abs(txn.amount), credit),
                 style = MaterialTheme.typography.bodyLarge,
                 fontWeight = FontWeight.SemiBold,
-                color = if (positive) categoryColor(Categorizer.INCOME) else MaterialTheme.colorScheme.onSurface
+                color = if (credit) categoryColor(Categorizer.INCOME) else MaterialTheme.colorScheme.onSurface
             )
             // Foreign purchases show what the merchant actually billed, so the rial figure is
             // never mistaken for the original amount.
             if (txn.isForeign) {
                 Text(
                     "${txn.currency} ${Format.omr2(txn.originalAmount)}",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            } else if (txn.manual) {
+                Text(
+                    "added by you",
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )

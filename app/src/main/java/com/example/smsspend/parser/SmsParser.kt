@@ -29,7 +29,11 @@ data class ParsedTxn(
     val isCard: Boolean get() = cardLast4.isNotEmpty()
 }
 
-/** A payment that landed on a credit card, reducing what's owed. Not spending. */
+/**
+ * Money credited back to a card — a payment from the current account, or a reversed charge.
+ * Either way it raises the available limit, which is what makes it matter when reconstructing
+ * what a later purchase actually cost. [amount] is always OMR.
+ */
 data class CardPaymentInfo(val cardLast4: String, val amount: Double, val date: Long)
 
 /** The remaining credit a card SMS reported, at the time it was sent. */
@@ -92,6 +96,11 @@ object SmsParser {
     )
     private val ccAvailableLimit = Regex(
         """Available\s+limit\s+OMR\s*([0-9][0-9,]*(?:\.[0-9]+)?)""", RegexOption.IGNORE_CASE
+    )
+    // "your card 420460******0444 transaction for USD 1.000 at GOOGLE*ANDROID TEMP on 27/07/2026 19:40:35 was reversed"
+    private val ccReversal = Regex(
+        """card\s+([\d*]+)\s+transaction\s+for\s+([A-Z]{3})\s+([0-9][0-9,]*(?:\.[0-9]+)?)\s+at\s+(.+?)\s+on\s+(\d{2}/\d{2}/\d{4}\s+\d{2}:\d{2}:\d{2})\s+was\s+reversed""",
+        RegexOption.IGNORE_CASE
     )
     // "Payment of OMR 200.000 has been credited on your card 420460******0444 on 28/07/2026 13:39:57"
     private val ccPayment = Regex(
@@ -199,8 +208,26 @@ object SmsParser {
             // Skip: account debited as CC payment (CC spending already tracked per-item)
             body.contains("as payment towards bank muscat Credit Card", ignoreCase = true) -> null
 
-            // Skip: reversed transactions (both legs cancel; original usually already recorded)
-            body.contains("was reversed", ignoreCase = true) -> null
+            // A reversal refunds an earlier charge. Recorded as a negative spend so it cancels
+            // the original out of the totals, and so the money coming back is visible.
+            body.contains("was reversed", ignoreCase = true) -> {
+                val m = ccReversal.find(body) ?: return null
+                val currency = m.groupValues[2].uppercase()
+                val billed = num(m.groupValues[3])
+                if (billed <= 0) return null
+                val txnDate = parseDmyHms(m.groupValues[5])
+                ParsedTxn(
+                    type = TxnType.DEBIT,
+                    amount = -(if (currency == "OMR") billed else toOmr(billed, currency)),
+                    merchantRaw = m.groupValues[4].trim(),
+                    date = if (txnDate > 0) txnDate else date,
+                    key = key,
+                    body = body,
+                    currency = currency,
+                    originalAmount = if (currency == "OMR") 0.0 else billed,
+                    cardLast4 = m.groupValues[1].takeLast(4)
+                )
+            }
 
             // Skip: OTP messages (duplicate of the matching CC spend SMS)
             body.contains("One Time Password", ignoreCase = true) -> null
@@ -364,6 +391,25 @@ object SmsParser {
         if (amt <= 0.0) return null
         val stamped = englishDateTime.find(body)?.groupValues?.get(1)?.let { parseDmyHms(it) } ?: 0L
         return CardPaymentInfo(m.groupValues[2].takeLast(4), amt, if (stamped > 0) stamped else date)
+    }
+
+    /**
+     * A reversed charge, as a credit back to the card. Without this the limit chain shows a
+     * smaller drop than really occurred and the next foreign purchase is under-counted.
+     */
+    fun parseCardReversal(rawBody: String, date: Long): CardPaymentInfo? {
+        val body = normalize(rawBody)
+        if (!body.contains("was reversed", ignoreCase = true)) return null
+        val m = ccReversal.find(body) ?: return null
+        val billed = num(m.groupValues[3])
+        if (billed <= 0.0) return null
+        val currency = m.groupValues[2].uppercase()
+        val stamped = parseDmyHms(m.groupValues[5])
+        return CardPaymentInfo(
+            cardLast4 = m.groupValues[1].takeLast(4),
+            amount = if (currency == "OMR") billed else toOmr(billed, currency),
+            date = if (stamped > 0) stamped else date
+        )
     }
 
     /** The remaining credit reported by a card spend SMS — drives the "owed on card" figure. */
