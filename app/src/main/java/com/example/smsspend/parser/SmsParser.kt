@@ -183,7 +183,9 @@ object SmsParser {
             body.contains("أرباح نقدية") ||
             body.contains("طلب الإكتتاب") ||
             body.contains("Annual General Meeting", ignoreCase = true) ||
-            body.contains("used for", ignoreCase = true)
+            body.contains("used for", ignoreCase = true) ||
+            // A reversal names only the billed currency, so it can carry no "OMR" at all.
+            body.contains("was reversed", ignoreCase = true)
 
     private fun num(s: String): Double = s.replace(",", "").toDoubleOrNull() ?: 0.0
 
