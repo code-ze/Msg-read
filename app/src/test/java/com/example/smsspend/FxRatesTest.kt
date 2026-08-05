@@ -13,7 +13,12 @@ class FxRatesTest {
     /** A representative EUR/USD; the exact value only matters for the euro-linked cases. */
     private val usdPerEur = 1.08
 
-    private fun live(map: Map<String, Double>): (String) -> Double? = { map[it] }
+    /**
+     * Providers quote "units of X per 1 USD"; [FxRates] wants USD per unit, so invert — exactly
+     * what MainViewModel does with the cached table.
+     */
+    private fun live(perUsd: Map<String, Double>): (String) -> Double? =
+        { code -> perUsd[code]?.takeIf { it > 0.0 }?.let { 1.0 / it } }
 
     // ---- direction ----
 

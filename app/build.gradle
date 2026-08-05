@@ -69,4 +69,7 @@ dependencies {
 
     // Unit tests (pure JVM)
     testImplementation 'junit:junit:4.13.2'
+    // android.jar ships org.json as stubs that throw, so JSON parsing can't be unit-tested
+    // without a real implementation on the test classpath.
+    testImplementation 'org.json:json:20240303'
 }

@@ -28,6 +28,7 @@ object FxRates {
 
     /** Currencies pegged to the dollar, quoted as "units of X per 1 USD". */
     private val peggedToUsd = mapOf(
+        "USD" to 1.0,       // the anchor itself — the rial's peg prices it with no live rate
         "AED" to 3.6725,    // UAE dirham
         "SAR" to 3.7500,    // Saudi riyal
         "QAR" to 3.6400,    // Qatari riyal
