@@ -23,6 +23,10 @@ object Format {
     fun omr2Signed(v: Double, positive: Boolean): String =
         (if (positive) "+" else "−") + String.format(Locale.US, "%,.2f", v)
 
+    /** "+2.6%" / "−0.4%" — always signed, so the direction is unambiguous. */
+    fun signedPercent(v: Double): String =
+        (if (v >= 0) "+" else "−") + String.format(Locale.US, "%.1f", kotlin.math.abs(v)) + "%"
+
     private val dayFmt = SimpleDateFormat("EEE, MMM d", Locale.getDefault())
     private val timeFmt = SimpleDateFormat("MMM d · HH:mm", Locale.getDefault())
     fun day(ms: Long): String = dayFmt.format(Date(ms))

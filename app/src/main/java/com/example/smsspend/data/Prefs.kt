@@ -70,6 +70,47 @@ object Prefs {
     fun setCategoryBudget(c: Context, category: String, v: Double) =
         sp(c).edit().putFloat("budget_${category.replace(' ', '_')}", v.toFloat()).apply()
 
+    // --- live exchange rates (for the bank-markup figure) ---
+    private const val KEY_LIVE_FX = "live_fx_rates"
+    private const val KEY_FX_RATES = "fx_rates_json"
+    private const val KEY_FX_AT = "fx_rates_at"
+
+    /** Rates older than this are refetched; older ones are still used if a refetch fails. */
+    const val FX_TTL_MS = 6L * 60 * 60 * 1000
+
+    fun getLiveFxRates(c: Context): Boolean = sp(c).getBoolean(KEY_LIVE_FX, true)
+    fun setLiveFxRates(c: Context, v: Boolean) = sp(c).edit().putBoolean(KEY_LIVE_FX, v).apply()
+
+    fun getFxFetchedAt(c: Context): Long = sp(c).getLong(KEY_FX_AT, 0L)
+
+    /** True when the cache is missing or past its TTL. */
+    fun fxRatesStale(c: Context): Boolean =
+        System.currentTimeMillis() - getFxFetchedAt(c) > FX_TTL_MS
+
+    /** Cached "units of X per 1 USD". Empty when nothing has ever been fetched. */
+    fun getFxRates(c: Context): Map<String, Double> {
+        val raw = sp(c).getString(KEY_FX_RATES, null) ?: return emptyMap()
+        val obj = runCatching { org.json.JSONObject(raw) }.getOrNull() ?: return emptyMap()
+        val out = HashMap<String, Double>()
+        val keys = obj.keys()
+        while (keys.hasNext()) {
+            val k = keys.next()
+            val v = obj.optDouble(k, Double.NaN)
+            if (!v.isNaN() && v > 0.0) out[k] = v
+        }
+        return out
+    }
+
+    fun setFxRates(c: Context, rates: Map<String, Double>, fetchedAt: Long) {
+        if (rates.isEmpty()) return
+        val obj = org.json.JSONObject()
+        rates.forEach { (k, v) -> obj.put(k, v) }
+        sp(c).edit()
+            .putString(KEY_FX_RATES, obj.toString())
+            .putLong(KEY_FX_AT, fetchedAt)
+            .apply()
+    }
+
     // --- per-widget config: which metric this widget shows ---
     val metricLabels = linkedMapOf(
         "balance" to "Balance",

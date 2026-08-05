@@ -56,6 +56,9 @@ fun SettingsScreen(vm: MainViewModel) {
     val creditLimitTotal by vm.effectiveCreditLimit.collectAsStateWithLifecycle()
     val creditLimitInferred by vm.creditLimitInferred.collectAsStateWithLifecycle()
     val cardOwed by vm.cardOwed.collectAsStateWithLifecycle()
+    val liveFx by vm.liveFxRates.collectAsStateWithLifecycle()
+    val fxRates by vm.fxRates.collectAsStateWithLifecycle()
+    val fxFetchedAt by vm.fxFetchedAt.collectAsStateWithLifecycle()
 
     Column(
         Modifier
@@ -275,6 +278,45 @@ fun SettingsScreen(vm: MainViewModel) {
             }
         }
 
+        // ---- exchange rates / markup ----
+        Card(Modifier.fillMaxWidth()) {
+            Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text("Bank markup", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Column(Modifier.weight(1f)) {
+                        Text("Fetch mid-market exchange rates")
+                        Text(
+                            if (liveFx)
+                                "On — daily reference rates are fetched to show what the bank added " +
+                                    "on top of each foreign purchase. Cached for 6 hours."
+                            else
+                                "Off — markup is only shown for dollar-pegged currencies, which " +
+                                    "need no network.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                    Switch(checked = liveFx, onCheckedChange = { vm.setLiveFxRates(it) })
+                }
+                Text(
+                    if (fxFetchedAt > 0)
+                        "Rates updated ${Format.dayTime(fxFetchedAt)} · ${fxRates.size} currencies"
+                    else
+                        "No rates fetched yet. USD and Gulf currencies still work — the rial's peg " +
+                            "to the dollar is fixed, so they need no live rate at all.",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Text(
+                    "Markup is only shown where the rial amount came from the bank itself. For a " +
+                        "purchase the app had to convert on its own, comparing against the true " +
+                        "rate would just measure the app's own guess.",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        }
+
         // ---- data export ----
         Card(Modifier.fillMaxWidth()) {
             Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -313,12 +355,21 @@ fun SettingsScreen(vm: MainViewModel) {
             Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 Text("Privacy", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
                 Text(
-                    if (liveMsx)
-                        "SMS stays on your device (READ_SMS). The only network use is fetching " +
-                            "stock prices from MSX, which you enabled above. Exports go only where you send them."
-                    else
-                        "Everything stays on your device. The app only reads SMS (READ_SMS) and " +
-                            "makes no network connections. Exports go only where you send them.",
+                    buildString {
+                        append("SMS stays on your device (READ_SMS) and is never uploaded. ")
+                        val uses = buildList {
+                            if (liveMsx) add("share prices from MSX")
+                            if (liveFx) add("mid-market exchange rates")
+                        }
+                        if (uses.isEmpty()) {
+                            append("The app makes no network connections at all. ")
+                        } else {
+                            append("The only network use is fetching ")
+                            append(uses.joinToString(" and "))
+                            append(" — no transaction data is ever sent. ")
+                        }
+                        append("Exports go only where you send them.")
+                    },
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )

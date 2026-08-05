@@ -22,7 +22,13 @@ data class ParsedTxn(
     /** Last 4 digits of the credit card, when this came from a card SMS. */
     val cardLast4: String = "",
     /** Remaining credit (OMR) the card SMS reported, 0 when absent. */
-    val availableLimit: Double = 0.0
+    val availableLimit: Double = 0.0,
+    /**
+     * True when [amount] is the figure the bank actually took, rather than something the app
+     * converted with its own rate. Only an exact amount can be compared against the mid-market
+     * rate to reveal the bank's markup — measuring our own estimate would be circular.
+     */
+    val amountExact: Boolean = true
 ) {
     /** True when this was billed in a foreign currency and [amount] is a conversion. */
     val isForeign: Boolean get() = currency != "OMR" && originalAmount > 0.0
@@ -227,7 +233,8 @@ object SmsParser {
                     body = body,
                     currency = currency,
                     originalAmount = if (currency == "OMR") 0.0 else billed,
-                    cardLast4 = m.groupValues[1].takeLast(4)
+                    cardLast4 = m.groupValues[1].takeLast(4),
+                    amountExact = currency == "OMR"
                 )
             }
 
@@ -257,7 +264,10 @@ object SmsParser {
                     currency = currency,
                     originalAmount = if (currency == "OMR") 0.0 else billed,
                     cardLast4 = last4,
-                    availableLimit = limit
+                    availableLimit = limit,
+                    // A foreign figure here is our own conversion until CardCharges derives
+                    // the real one from the limit drop.
+                    amountExact = currency == "OMR"
                 )
             }
 

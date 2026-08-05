@@ -86,7 +86,12 @@ fun CategoryDot(category: String, size: Int = 12) {
 }
 
 @Composable
-fun TxnRow(txn: com.example.smsspend.data.TxnEntity, onClick: () -> Unit) {
+fun TxnRow(
+    txn: com.example.smsspend.data.TxnEntity,
+    /** Bank's cross-currency markup, when it can be established. Null hides the line. */
+    markupPercent: Double? = null,
+    onClick: () -> Unit
+) {
     val type = runCatching { TxnType.valueOf(txn.type) }.getOrDefault(TxnType.DEBIT)
     val positive = type.isIncome
     val tag = if (txn.subcategory.isNotBlank()) "${txn.category} › ${txn.subcategory}" else txn.category
@@ -111,6 +116,20 @@ fun TxnRow(txn: com.example.smsspend.data.TxnEntity, onClick: () -> Unit) {
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 maxLines = 1
             )
+            // What the bank took over the mid-market rate. Only shown when the rial figure came
+            // from the bank itself, so this measures them and not our own conversion.
+            if (markupPercent != null) {
+                Text(
+                    "Bank markup: " + Format.signedPercent(markupPercent),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = when {
+                        markupPercent >= 3.0 -> MaterialTheme.colorScheme.error
+                        markupPercent >= 1.0 -> Color(0xFFE0A45B)
+                        else -> MaterialTheme.colorScheme.onSurfaceVariant
+                    },
+                    maxLines = 1
+                )
+            }
         }
         // A refund is stored as a negative spend; show it as money coming back rather than
         // letting the minus sign collide with the outgoing "−" prefix.

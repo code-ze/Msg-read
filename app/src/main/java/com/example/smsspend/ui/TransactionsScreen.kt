@@ -42,6 +42,7 @@ fun TransactionsScreen(vm: MainViewModel) {
     val salaryDates by vm.salaryDates.collectAsStateWithLifecycle()
     val txns by vm.recentTxns.collectAsStateWithLifecycle()
     val categoryDefs by vm.categories.collectAsStateWithLifecycle()
+    val fxRates by vm.fxRates.collectAsStateWithLifecycle()
 
     var query by remember { mutableStateOf("") }
     var selectedCat by remember { mutableStateOf<String?>(null) }
@@ -126,7 +127,8 @@ fun TransactionsScreen(vm: MainViewModel) {
                     items(filtered, key = { it.key }) { t ->
                         // Tapping opens the actions sheet — editing lives here rather than on the
                         // dashboard, where a tap should still jump straight to the merchant.
-                        TxnRow(t) { selected = t }
+                        val markup = remember(t, fxRates) { vm.markupPercent(t) }
+                        TxnRow(t, markupPercent = markup) { selected = t }
                         HorizontalDivider(Modifier.padding(start = 42.dp))
                     }
                     item { Box(Modifier.padding(bottom = 88.dp)) {} }

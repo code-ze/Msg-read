@@ -61,6 +61,7 @@ fun DashboardScreen(vm: MainViewModel) {
     val creditLimitTotal by vm.effectiveCreditLimit.collectAsStateWithLifecycle()
     val creditLimitInferred by vm.creditLimitInferred.collectAsStateWithLifecycle()
     val netWorth by vm.netWorth.collectAsStateWithLifecycle()
+    val fxRates by vm.fxRates.collectAsStateWithLifecycle()
 
     val isCurrent = period.endExclusive > System.currentTimeMillis()
     var selectedPoint by remember { mutableStateOf<BalanceSnapshot?>(null) }
@@ -166,7 +167,9 @@ fun DashboardScreen(vm: MainViewModel) {
                 }
             } else {
                 items(recent.take(12), key = { it.key }) { t ->
-                    TxnRow(t) { vm.navigate(Screen.Merchant(t.merchantClean)) }
+                    // Reading fxRates here is what makes the row recompose once rates arrive.
+                    val markup = remember(t, fxRates) { vm.markupPercent(t) }
+                    TxnRow(t, markupPercent = markup) { vm.navigate(Screen.Merchant(t.merchantClean)) }
                     HorizontalDivider(Modifier.padding(start = 42.dp))
                 }
                 if (recent.size > 12) {

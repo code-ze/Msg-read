@@ -37,7 +37,13 @@ data class TxnEntity(
      * Soft delete (v6). The row stays so a re-import can't resurrect it: the SMS is still in the
      * inbox and its key would be inserted again. Every query filters these out.
      */
-    @ColumnInfo(defaultValue = "0") val hidden: Boolean = false
+    @ColumnInfo(defaultValue = "0") val hidden: Boolean = false,
+    /**
+     * True when [amount] is the bank's own figure rather than an app-side conversion (v7).
+     * Gates the markup readout: comparing our own estimate to the mid-market rate would only
+     * measure our estimate.
+     */
+    @ColumnInfo(defaultValue = "1") val amountExact: Boolean = true
 ) {
     /** True when [amount] is a converted figure rather than the amount as billed. */
     val isForeign: Boolean get() = currency != "OMR" && originalAmount > 0.0

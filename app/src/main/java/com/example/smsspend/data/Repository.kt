@@ -116,7 +116,8 @@ class Repository(private val appContext: Context) {
                 subcategory = subcategory,
                 body = p.body,
                 currency = p.currency,
-                originalAmount = p.originalAmount
+                originalAmount = p.originalAmount,
+                amountExact = p.amountExact
             )
         }
         txnDao.insertAll(entities)
@@ -224,6 +225,21 @@ class Repository(private val appContext: Context) {
 
     suspend fun deleteHolding(holding: Holding) = withContext(Dispatchers.IO) {
         holdingDao.delete(holding)
+    }
+
+    /**
+     * Refreshes the mid-market rate table used for the bank-markup figure.
+     *
+     * Only goes to the network when the cache is past its TTL, and keeps whatever is already
+     * cached if the fetch fails — a rate a few hours (or days) old still prices a markup far
+     * better than nothing, since these are reference rates that barely move.
+     */
+    suspend fun refreshFxRates(force: Boolean = false): Boolean = withContext(Dispatchers.IO) {
+        if (!Prefs.getLiveFxRates(appContext)) return@withContext false
+        if (!force && !Prefs.fxRatesStale(appContext)) return@withContext false
+        val snap = FxRateSource.fetch() ?: return@withContext false
+        Prefs.setFxRates(appContext, snap.perUsd, snap.fetchedAt)
+        true
     }
 
     /** Opt-in: fetch live prices for holdings that have a symbol. Returns count updated. */

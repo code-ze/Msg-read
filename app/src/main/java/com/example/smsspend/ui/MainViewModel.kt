@@ -11,6 +11,7 @@ import com.example.smsspend.data.MerchantSum
 import com.example.smsspend.data.Prefs
 import com.example.smsspend.data.Repository
 import com.example.smsspend.data.TxnEntity
+import com.example.smsspend.model.FxRates
 import com.example.smsspend.model.Insights
 import com.example.smsspend.model.Period
 import com.example.smsspend.model.Periods
@@ -464,6 +465,9 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
 
     // ---- data ----
     fun refresh() {
+        // Rates age out on their own schedule; piggy-backing on the user's refresh keeps the
+        // markup figures current without a background job.
+        refreshFxRates()
         viewModelScope.launch {
             loading.value = true
             try {
@@ -476,6 +480,61 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                 importStatus.value = "Couldn't read SMS"
             } finally {
                 loading.value = false
+            }
+        }
+    }
+
+    // ---- foreign-exchange markup ----
+
+    val liveFxRates = MutableStateFlow(Prefs.getLiveFxRates(app))
+
+    /** Cached mid-market rates as "units of X per 1 USD"; empty until a first fetch succeeds. */
+    val fxRates = MutableStateFlow(Prefs.getFxRates(app))
+    val fxFetchedAt = MutableStateFlow(Prefs.getFxFetchedAt(app))
+
+    /**
+     * Prices one unit of [currency] in rials at the mid-market rate. Dollar-pegged currencies
+     * resolve with no network at all; the euro and floating currencies need the cached table.
+     */
+    fun trueOmrPerUnit(currency: String): FxRates.TrueRate? {
+        val rates = fxRates.value
+        val usdPerEur = rates["EUR"]?.takeIf { it > 0.0 }?.let { 1.0 / it }
+        return FxRates.trueOmrPerUnit(
+            currency = currency,
+            usdPerEur = usdPerEur,
+            liveUsdPerUnit = { code -> rates[code]?.takeIf { it > 0.0 }?.let { 1.0 / it } }
+        )
+    }
+
+    /**
+     * The bank's cross-currency markup on [txn], or null when it can't be established honestly —
+     * a domestic purchase, an amount the app converted itself rather than read from the bank, or
+     * a currency with no rate available.
+     */
+    fun markupPercent(txn: TxnEntity): Double? {
+        if (!txn.isForeign || !txn.amountExact) return null
+        val trueRate = trueOmrPerUnit(txn.currency) ?: return null
+        return FxRates.markupPercent(
+            omrCharged = kotlin.math.abs(txn.amount),
+            foreignAmount = txn.originalAmount,
+            trueOmrPerUnit = trueRate.omrPerUnit
+        )
+    }
+
+    fun setLiveFxRates(v: Boolean) {
+        Prefs.setLiveFxRates(getApplication<Application>(), v)
+        liveFxRates.value = v
+        if (v) refreshFxRates(force = true)
+    }
+
+    /** Refreshes rates if the cache has aged out; keeps the old table when the fetch fails. */
+    fun refreshFxRates(force: Boolean = false) {
+        viewModelScope.launch {
+            val changed = runCatching { repo.refreshFxRates(force) }.getOrDefault(false)
+            if (changed) {
+                val app = getApplication<Application>()
+                fxRates.value = Prefs.getFxRates(app)
+                fxFetchedAt.value = Prefs.getFxFetchedAt(app)
             }
         }
     }

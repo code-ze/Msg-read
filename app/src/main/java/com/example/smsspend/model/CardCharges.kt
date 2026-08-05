@@ -94,6 +94,10 @@ object CardCharges {
             }
 
         return if (exact.isEmpty()) txns
-        else txns.map { t -> exact[t.key]?.let { t.copy(amount = it) } ?: t }
+        else txns.map { t ->
+            // Flagged exact: this is the bank's own figure, so it can be compared against the
+            // mid-market rate to show the markup.
+            exact[t.key]?.let { t.copy(amount = it, amountExact = true) } ?: t
+        }
     }
 }
