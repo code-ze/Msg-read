@@ -1,0 +1,309 @@
+package com.example.smsspend.ui
+
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.LinearProgressIndicator
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.example.smsspend.model.Recommendations
+
+@Composable
+fun InsightsScreen(vm: MainViewModel) {
+    val period by vm.period.collectAsStateWithLifecycle()
+    val anchor by vm.anchorDay.collectAsStateWithLifecycle()
+    val salaryDates by vm.salaryDates.collectAsStateWithLifecycle()
+    val recs by vm.recommendations.collectAsStateWithLifecycle()
+    val safe by vm.safeToSpend.collectAsStateWithLifecycle()
+    val insights by vm.insights.collectAsStateWithLifecycle()
+    val totals by vm.totals.collectAsStateWithLifecycle()
+    val currentStreak by vm.currentStreak.collectAsStateWithLifecycle()
+    val bestStreak by vm.bestStreak.collectAsStateWithLifecycle()
+    val dailyLimit by vm.dailyLimit.collectAsStateWithLifecycle()
+    val monthlyBudget by vm.monthlyBudget.collectAsStateWithLifecycle()
+    val categoryBudgets by vm.categoryBudgets.collectAsStateWithLifecycle()
+    val todaySpend by vm.todaySpend.collectAsStateWithLifecycle()
+
+    Column(Modifier.fillMaxSize()) {
+        PeriodBar(
+            period = period,
+            canStep = vm.canStep,
+            anchorDay = anchor,
+            salaryDetected = salaryDates.isNotEmpty(),
+            onStep = { vm.stepPeriod(it) },
+            onSelect = { vm.setPeriod(it) }
+        )
+
+        LazyColumn(Modifier.fillMaxSize()) {
+            item { SafeToSpendCard(safe, insights.perDay) }
+
+            item { PeriodSummaryCard(totals.income, totals.spent, totals.net, totals.byCategory.firstOrNull()?.category) }
+
+            // Spending streak card (only if limit is set)
+            if (dailyLimit > 0) {
+                item { StreakCard(currentStreak, bestStreak, dailyLimit, todaySpend) }
+            }
+
+            // Monthly budget card (only if budget is set)
+            if (monthlyBudget > 0) {
+                item { MonthlyBudgetCard(totals.spent, monthlyBudget) }
+            }
+
+            // Per-category budgets (only show categories with a budget set)
+            val activeBudgets = categoryBudgets.filter { it.value > 0 }
+            if (activeBudgets.isNotEmpty()) {
+                item { SectionHeader("Category budgets") }
+                item {
+                    Card(Modifier.fillMaxWidth().padding(horizontal = 16.dp)) {
+                        Column(Modifier.padding(vertical = 8.dp)) {
+                            activeBudgets.entries.sortedBy { it.key }.forEach { (cat, budget) ->
+                                val spent = totals.byCategory.firstOrNull { it.category == cat }?.total ?: 0.0
+                                CategoryBudgetRow(cat, spent, budget)
+                            }
+                        }
+                    }
+                }
+            }
+
+            item { SectionHeader("Recommendations") }
+
+            if (recs.isEmpty()) {
+                item {
+                    Text(
+                        "You're on track — no actions needed right now. Recommendations appear as " +
+                            "spending patterns, idle cash, or rising bills show up.",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(16.dp)
+                    )
+                }
+            } else {
+                items(recs, key = { it.kind + it.title }) { rec -> RecCard(rec) }
+            }
+
+            item {
+                Text(
+                    "How this works: Safe-to-spend = balance ÷ days left in the cycle. Idle cash = " +
+                        "balance above a 6-month buffer of your average spend. Fixed-cost audits compare " +
+                        "this period to your 3-month rolling average. All computed on-device.",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(16.dp)
+                )
+            }
+            item { Box(Modifier.height(24.dp)) }
+        }
+    }
+}
+
+@Composable
+private fun StreakCard(current: Int, best: Int, limit: Double, todaySpend: Double) {
+    val overLimit = todaySpend > limit
+    val nearLimit = todaySpend > limit * 0.8
+    val accentColor = when {
+        overLimit -> MaterialTheme.colorScheme.error
+        nearLimit -> Color(0xFFE0A45B)
+        else -> MaterialTheme.colorScheme.primary
+    }
+    Card(
+        Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
+    ) {
+        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                Text("Spending streak", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
+                Text(
+                    "limit ${Format.omr2(limit)} OMR/day",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+                Column(Modifier.weight(1f), horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text(
+                        "$current",
+                        style = MaterialTheme.typography.displaySmall,
+                        fontWeight = FontWeight.Bold,
+                        color = accentColor
+                    )
+                    Text("day streak", style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+                Column(Modifier.weight(1f), horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text(
+                        "$best",
+                        style = MaterialTheme.typography.displaySmall,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.tertiary
+                    )
+                    Text("best ever", style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+            }
+            val statusText = when {
+                overLimit -> "Today: ${Format.omr2(todaySpend)} OMR — over your daily limit!"
+                nearLimit -> "Today: ${Format.omr2(todaySpend)} OMR — close to your limit."
+                else -> "Today: ${Format.omr2(todaySpend)} OMR — within your daily limit."
+            }
+            Text(statusText, style = MaterialTheme.typography.bodySmall, color = accentColor)
+        }
+    }
+}
+
+@Composable
+private fun MonthlyBudgetCard(spent: Double, budget: Double) {
+    val fraction = if (budget > 0) (spent / budget).coerceIn(0.0, 1.0).toFloat() else 0f
+    val pct = (fraction * 100).toInt()
+    val over = spent > budget
+    val near = spent > budget * 0.8
+    val trackColor = when {
+        over -> MaterialTheme.colorScheme.error
+        near -> Color(0xFFE0A45B)
+        else -> MaterialTheme.colorScheme.primary
+    }
+    Card(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp)) {
+        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.Bottom) {
+                Text("Monthly budget", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
+                Text("${Format.omr2(spent)} / ${Format.omr2(budget)} OMR",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+            LinearProgressIndicator(
+                progress = { fraction },
+                modifier = Modifier.fillMaxWidth().height(8.dp).clip(RoundedCornerShape(4.dp)),
+                color = trackColor,
+                trackColor = MaterialTheme.colorScheme.surfaceVariant
+            )
+            val label = when {
+                over -> "Over budget by ${Format.omr2(spent - budget)} OMR"
+                else -> "$pct% used · ${Format.omr2(budget - spent)} OMR remaining"
+            }
+            Text(label, style = MaterialTheme.typography.labelSmall,
+                color = if (over) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+    }
+}
+
+@Composable
+private fun CategoryBudgetRow(category: String, spent: Double, budget: Double) {
+    val fraction = if (budget > 0) (spent / budget).coerceIn(0.0, 1.0).toFloat() else 0f
+    val over = spent > budget
+    val near = spent > budget * 0.8
+    val trackColor = when {
+        over -> MaterialTheme.colorScheme.error
+        near -> Color(0xFFE0A45B)
+        else -> MaterialTheme.colorScheme.primary
+    }
+    Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
+        verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+            Text(category, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold)
+            Text(
+                "${Format.omr2(spent)} / ${Format.omr2(budget)}",
+                style = MaterialTheme.typography.bodySmall,
+                color = if (over) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+        LinearProgressIndicator(
+            progress = { fraction },
+            modifier = Modifier.fillMaxWidth().height(6.dp).clip(RoundedCornerShape(3.dp)),
+            color = trackColor,
+            trackColor = MaterialTheme.colorScheme.surfaceVariant
+        )
+    }
+}
+
+@Composable
+private fun PeriodSummaryCard(income: Double, spent: Double, net: Double, topCategory: String?) {
+    val savingsRate = if (income > 0) ((income - spent) / income * 100).toInt() else null
+    Card(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp)) {
+        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text("This period", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
+            InsightLine(
+                "Savings rate",
+                if (savingsRate != null) "$savingsRate%" else "—",
+                if (savingsRate != null && savingsRate < 0) "spending more than you earn" else "of income kept"
+            )
+            InsightLine(
+                "Net flow",
+                (if (net >= 0) "+" else "−") + Format.omr2(kotlin.math.abs(net)) + " OMR", null
+            )
+            if (topCategory != null) InsightLine("Biggest category", topCategory, null)
+        }
+    }
+}
+
+@Composable
+private fun SafeToSpendCard(safe: Double, perDay: Double) {
+    Card(
+        Modifier.fillMaxWidth().padding(16.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
+    ) {
+        Column(Modifier.padding(20.dp)) {
+            Text("Safe to spend", style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Row(verticalAlignment = Alignment.Bottom) {
+                Text(
+                    if (safe > 0) Format.omr2(safe) else "—",
+                    style = MaterialTheme.typography.displaySmall,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.primary
+                )
+                Text("  OMR/day", style = MaterialTheme.typography.titleMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(bottom = 6.dp))
+            }
+            val pace = when {
+                safe <= 0 -> "Add your balance to see a daily budget."
+                perDay <= safe -> "You're under your daily budget — nice pace."
+                else -> "You're spending ${Format.omr2(perDay)} OMR/day, above this budget."
+            }
+            Text(pace, style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(top = 6.dp))
+        }
+    }
+}
+
+@Composable
+private fun RecCard(rec: Recommendations.Rec) {
+    val accent = when (rec.kind) {
+        Recommendations.SAFE_TO_SPEND -> MaterialTheme.colorScheme.error
+        Recommendations.MICRO_LEAK -> Color(0xFFE0A45B)
+        Recommendations.IDLE_CASH -> MaterialTheme.colorScheme.tertiary
+        Recommendations.FIXED_COST -> MaterialTheme.colorScheme.secondary
+        else -> MaterialTheme.colorScheme.primary
+    }
+    Card(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 6.dp)) {
+        Row(Modifier.padding(16.dp)) {
+            Box(Modifier.size(10.dp).background(accent, CircleShape).padding(top = 6.dp))
+            Column(Modifier.padding(start = 12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Text(rec.title, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
+                Text(rec.body, style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+        }
+    }
+}

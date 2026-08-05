@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">SMS Spend</string>
+    <string name="widget_total_desc">Shows one spending metric for the current pay cycle.</string>
+    <string name="widget_breakdown_desc">Shows a metric plus your top spending categories.</string>
+</resources>

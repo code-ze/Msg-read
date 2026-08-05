@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<appwidget-provider xmlns:android="http://schemas.android.com/apk/res/android"
+    android:minWidth="110dp"
+    android:minHeight="40dp"
+    android:targetCellWidth="2"
+    android:targetCellHeight="1"
+    android:updatePeriodMillis="1800000"
+    android:initialLayout="@layout/widget_total"
+    android:previewLayout="@layout/widget_total"
+    android:configure="com.example.smsspend.widget.WidgetConfigActivity"
+    android:description="@string/widget_total_desc"
+    android:resizeMode="horizontal|vertical"
+    android:widgetCategory="home_screen"/>
